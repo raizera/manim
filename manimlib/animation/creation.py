@@ -113,6 +113,17 @@ class Write(DrawBorderThenFill):
         else:
             self.run_time = 2
 
+
+class ShowIncreasingSubsets(Animation):
+    def __init__(self, group, **kwargs):
+        self.all_submobs = group.submobjects
+        Animation.__init__(self, group, **kwargs)
+
+    def update_mobject(self, alpha):
+        n_submobs = len(self.all_submobs)
+        index = int(alpha * n_submobs)
+        self.mobject.submobjects = self.all_submobs[:index]
+
 # Fading
 
 
@@ -203,6 +214,7 @@ class VFadeIn(Animation):
     to mobjects while they are being animated in some other way (e.g. shifting
     then) in a way that does not work with FadeIn and FadeOut
     """
+
     def update_submobject(self, submobject, starting_submobject, alpha):
         submobject.set_stroke(
             opacity=interpolate(0, starting_submobject.get_stroke_opacity(), alpha)
@@ -234,11 +246,10 @@ class GrowFromPoint(Transform):
     def __init__(self, mobject, point, **kwargs):
         digest_config(self, kwargs)
         target = mobject.copy()
-        point_mob = VectorizedPoint(point)
+        mobject.scale(0)
+        mobject.move_to(point)
         if self.point_color:
-            point_mob.set_color(self.point_color)
-        mobject.replace(point_mob)
-        mobject.set_color(point_mob.get_color())
+            mobject.set_color(self.point_color)
         Transform.__init__(self, mobject, target, **kwargs)
 
 

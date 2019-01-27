@@ -30,6 +30,7 @@ class Camera(object):
         "background_image": None,
         "pixel_height": DEFAULT_PIXEL_HEIGHT,
         "pixel_width": DEFAULT_PIXEL_WIDTH,
+        "frame_duration": DEFAULT_FRAME_DURATION,
         # Note: frame height and width will be resized to match
         # the pixel aspect ratio
         "frame_height": FRAME_HEIGHT,
@@ -392,7 +393,10 @@ class Camera(object):
             vmobject
         )
         ctx.set_line_width(
-            width * self.cairo_line_width_multiple
+            width * self.cairo_line_width_multiple *
+            # This ensures lines have constant width
+            # as you zoom in on them.
+            (self.get_frame_width() / FRAME_WIDTH)
         )
         ctx.stroke_preserve()
         return self
