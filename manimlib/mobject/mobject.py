@@ -10,9 +10,7 @@ import numpy as np
 
 from manimlib.constants import *
 from manimlib.container.container import Container
-from manimlib.utils.bezier import interpolate
 from manimlib.utils.color import color_gradient
-from manimlib.utils.color import color_to_rgb
 from manimlib.utils.color import interpolate_color
 from manimlib.utils.iterables import list_update
 from manimlib.utils.iterables import remove_list_redundancies
@@ -36,11 +34,9 @@ class Mobject(Container):
         "target": None,
     }
 
-    def __init__(self, *submobjects, **kwargs):
-        Container.__init__(self, *submobjects, **kwargs)
-        if not all([isinstance(m, Mobject) for m in submobjects]):
-            raise Exception("All submobjects must be of type Mobject")
-        self.submobjects = list(submobjects)
+    def __init__(self, **kwargs):
+        Container.__init__(self, **kwargs)
+        self.submobjects = []
         self.color = Color(self.color)
         if self.name is None:
             self.name = self.__class__.__name__
@@ -125,6 +121,7 @@ class Mobject(Container):
         copy_mobject.submobjects = [
             submob.copy() for submob in self.submobjects
         ]
+        copy_mobject.updaters = list(self.updaters)
         family = self.get_family()
         for attr, value in list(self.__dict__.items()):
             if isinstance(value, Mobject) and value in family and value is not self:
@@ -147,13 +144,14 @@ class Mobject(Container):
     # Updating
 
     def update(self, dt=0, recursive=True):
-        if not self.updating_suspended:
-            for updater in self.updaters:
-                parameters = get_parameters(updater)
-                if "dt" in parameters:
-                    updater(self, dt)
-                else:
-                    updater(self)
+        if self.updating_suspended:
+            return self
+        for updater in self.updaters:
+            parameters = get_parameters(updater)
+            if "dt" in parameters:
+                updater(self, dt)
+            else:
+                updater(self)
         if recursive:
             for submob in self.submobjects:
                 submob.update(dt, recursive)
@@ -182,8 +180,11 @@ class Mobject(Container):
             self.updaters.remove(update_function)
         return self
 
-    def clear_updaters(self):
+    def clear_updaters(self, recursive=True):
         self.updaters = []
+        if recursive:
+            for submob in self.submobjects:
+                submob.clear_updaters()
         return self
 
     def suspend_updating(self, recursive=True):
@@ -329,9 +330,10 @@ class Mobject(Container):
     # Note, much of these are now redundant with default behavior of
     # above methods
 
-    def apply_points_function_about_point(self, func, about_point=None, about_edge=ORIGIN):
+    def apply_points_function_about_point(self, func, about_point=None, about_edge=None):
         if about_point is None:
-            assert(about_edge is not None)
+            if about_edge is None:
+                about_edge = ORIGIN
             about_point = self.get_critical_point(about_edge)
         for mob in self.family_members_with_points():
             mob.points -= about_point
@@ -523,21 +525,42 @@ class Mobject(Container):
         self.shift(mobject.get_center() - self.get_center())
         return self
 
-    def surround(self, mobject, dim_to_match=0, stretch=False, buffer_factor=1.2):
+    def surround(self, mobject,
+                 dim_to_match=0,
+                 stretch=False,
+                 buff=MED_SMALL_BUFF):
         self.replace(mobject, dim_to_match, stretch)
-        self.scale_in_place(buffer_factor)
+        length = mobject.length_over_dim(dim_to_match)
+        self.scale_in_place((length + buff) / length)
+        return self
 
-    def position_endpoints_on(self, start, end):
-        curr_vect = self.points[-1] - self.points[0]
+    def get_start(self):
+        self.throw_error_if_no_points()
+        return np.array(self.points[0])
+
+    def get_end(self):
+        self.throw_error_if_no_points()
+        return np.array(self.points[-1])
+
+    def get_start_and_end(self):
+        return self.get_start(), self.get_end()
+
+    def put_start_and_end_on(self, start, end):
+        curr_start, curr_end = self.get_start_and_end()
+        curr_vect = curr_end - curr_start
         if np.all(curr_vect == 0):
             raise Exception("Cannot position endpoints of closed loop")
         target_vect = end - start
-        self.scale(get_norm(target_vect) / get_norm(curr_vect))
+        self.scale(
+            get_norm(target_vect) / get_norm(curr_vect),
+            about_point=curr_start,
+        )
         self.rotate(
             angle_of_vector(target_vect) -
-            angle_of_vector(curr_vect)
+            angle_of_vector(curr_vect),
+            about_point=curr_start
         )
-        self.shift(start - self.points[0])
+        self.shift(start - curr_start)
         return self
 
     # Background rectangle
@@ -636,34 +659,21 @@ class Mobject(Container):
         self.set_color(self.color)
         return self
 
-    # Some objects (e.g., VMobjects) have special fading
-    # behavior. We let every object handle its individual
-    # fading via fade_no_recurse (notionally a purely internal method),
-    # and then have fade() itself call this recursively on each submobject
-    #
-    # Similarly for fade_to_no_recurse and fade_to, the underlying functions
-    # used by default for fade()ing
-
-    def fade_to_no_recurse(self, color, alpha):
+    def fade_to(self, color, alpha, family=True):
         if self.get_num_points() > 0:
-            start = color_to_rgb(self.get_color())
-            end = color_to_rgb(color)
-            new_rgb = interpolate(start, end, alpha)
-            self.set_color(Color(rgb=new_rgb), family=False)
+            new_color = interpolate_color(
+                self.get_color(), color, alpha
+            )
+            self.set_color(new_color, family=False)
+        if family:
+            for submob in self.submobjects:
+                submob.fade_to(color, alpha)
         return self
 
-    def fade_to(self, color, alpha):
-        for mob in self.get_family():
-            mob.fade_to_no_recurse(color, alpha)
-        return self
-
-    def fade_no_recurse(self, darkness):
-        self.fade_to_no_recurse(BLACK, darkness)
-        return self
-
-    def fade(self, darkness=0.5):
-        for submob in self.get_family():
-            submob.fade_no_recurse(darkness)
+    def fade(self, darkness=0.5, family=True):
+        if family:
+            for submob in self.submobjects:
+                submob.fade(darkness, family)
         return self
 
     def get_color(self):
@@ -684,9 +694,7 @@ class Mobject(Container):
     def restore(self):
         if not hasattr(self, "saved_state") or self.save_state is None:
             raise Exception("Trying to restore without having saved")
-        self.align_data(self.saved_state)
-        for sm1, sm2 in zip(self.get_family(), self.saved_state.get_family()):
-            sm1.interpolate(sm1, sm2, 1)
+        self.become(self.saved_state)
         return self
 
     ##
@@ -817,6 +825,12 @@ class Mobject(Container):
             for a1, a2 in zip(alphas[:-1], alphas[1:])
         ])
 
+    def has_points(self):
+        return len(self.points) > 0
+
+    def has_no_points(self):
+        return not self.has_points()
+
     # Family matters
 
     def __getitem__(self, value):
@@ -847,14 +861,14 @@ class Mobject(Container):
     def family_members_with_points(self):
         return [m for m in self.get_family() if m.get_num_points() > 0]
 
-    def arrange_submobjects(self, direction=RIGHT, center=True, **kwargs):
+    def arrange(self, direction=RIGHT, center=True, **kwargs):
         for m1, m2 in zip(self.submobjects, self.submobjects[1:]):
             m2.next_to(m1, direction, **kwargs)
         if center:
             self.center()
         return self
 
-    def arrange_submobjects_in_grid(self, n_rows=None, n_cols=None, **kwargs):
+    def arrange_in_grid(self, n_rows=None, n_cols=None, **kwargs):
         submobs = self.submobjects
         if n_rows is None and n_cols is None:
             n_cols = int(np.sqrt(len(submobs)))
@@ -868,31 +882,42 @@ class Mobject(Container):
             v2 = RIGHT
             n = len(submobs) // n_cols
         Group(*[
-            Group(*submobs[i:i + n]).arrange_submobjects(v1, **kwargs)
+            Group(*submobs[i:i + n]).arrange(v1, **kwargs)
             for i in range(0, len(submobs), n)
-        ]).arrange_submobjects(v2, **kwargs)
+        ]).arrange(v2, **kwargs)
         return self
 
-    def sort_submobjects(self, point_to_num_func=lambda p: p[0]):
-        self.submobjects.sort(
-            key=lambda m: point_to_num_func(m.get_center())
-        )
+    def sort(self, point_to_num_func=lambda p: p[0], submob_func=None):
+        if submob_func is None:
+            submob_func = lambda m: point_to_num_func(m.get_center())
+        self.submobjects.sort(key=submob_func)
         return self
 
-    def shuffle_submobjects(self, recursive=False):
+    def shuffle(self, recursive=False):
         if recursive:
             for submob in self.submobjects:
-                submob.shuffle_submobjects(recursive=True)
+                submob.shuffle(recursive=True)
         random.shuffle(self.submobjects)
 
-    def print_submobject_family(self, n_tabs=0):
+    def print_family(self, n_tabs=0):
         """For debugging purposes"""
         print("\t" * n_tabs, self, id(self))
         for submob in self.submobjects:
-            submob.print_submobject_family(n_tabs + 1)
+            submob.print_family(n_tabs + 1)
+
+    # Just here to keep from breaking old scenes.
+    def arrange_submobjects(self, *args, **kwargs):
+        return self.arrange(*args, **kwargs)
+
+    def sort_submobjects(self, *args, **kwargs):
+        return self.sort(*args, **kwargs)
+
+    def shuffle_submobjects(self, *args, **kwargs):
+        return self.shuffle(*args, **kwargs)
 
     # Alignment
     def align_data(self, mobject):
+        self.null_point_align(mobject)
         self.align_submobjects(mobject)
         self.align_points(mobject)
         # Recurse
@@ -904,7 +929,8 @@ class Mobject(Container):
         The simplest mobject to be transformed to or from self.
         Should by a point of the appropriate type
         """
-        raise Exception("Not implemented")
+        message = "get_point_mobject not implemented for {}"
+        raise Exception(message.format(self.__class__.__name__))
 
     def align_points(self, mobject):
         count1 = self.get_num_points()
@@ -919,34 +945,24 @@ class Mobject(Container):
         raise Exception("Not implemented")
 
     def align_submobjects(self, mobject):
-        # If one is empty, and the other is not,
-        # push it into its submobject list
-        self_has_points, mob_has_points = [
-            mob.get_num_points() > 0
-            for mob in (self, mobject)
-        ]
-        if self_has_points and not mob_has_points:
-            mobject.null_point_align(self)
-        elif mob_has_points and not self_has_points:
-            self.null_point_align(mobject)
-        self_count = len(self.submobjects)
-        mob_count = len(mobject.submobjects)
-        diff = self_count - mob_count
-        if diff < 0:
-            self.add_n_more_submobjects(-diff)
-        elif diff > 0:
-            mobject.add_n_more_submobjects(diff)
+        mob1 = self
+        mob2 = mobject
+        n1 = len(mob1.submobjects)
+        n2 = len(mob2.submobjects)
+        mob1.add_n_more_submobjects(max(0, n2 - n1))
+        mob2.add_n_more_submobjects(max(0, n1 - n2))
         return self
 
     def null_point_align(self, mobject):
         """
-        If self has no points, but needs to align
-        with mobject, which has points
+        If a mobject with points is being aligned to
+        one without, treat both as groups, and push
+        the one with points into its own submobjects
+        list.
         """
-        if self.submobjects:
-            mobject.push_self_into_submobjects()
-        else:
-            self.points = np.array([mobject.points[0]])
+        for m1, m2 in (self, mobject), (mobject, self):
+            if m1.has_no_points() and m2.has_points():
+                m2.push_self_into_submobjects()
         return self
 
     def push_self_into_submobjects(self):
@@ -957,19 +973,34 @@ class Mobject(Container):
         return self
 
     def add_n_more_submobjects(self, n):
+        if n == 0:
+            return
+
         curr = len(self.submobjects)
-        if n > 0 and curr == 0:
-            self.add(self.copy())
-            n -= 1
-            curr += 1
-        indices = curr * np.arange(curr + n) // (curr + n)
-        new_submobjects = []
-        for index in indices:
-            submob = self.submobjects[index]
-            if submob in new_submobjects:
-                submob = self.repeat_submobject(submob)
-            new_submobjects.append(submob)
-        self.submobjects = new_submobjects
+        if curr == 0:
+            # If empty, simply add n point mobjects
+            self.submobjects = [
+                self.get_point_mobject()
+                for k in range(n)
+            ]
+            return
+
+        target = curr + n
+        # TODO, factor this out to utils so as to reuse
+        # with VMobject.insert_n_curves
+        repeat_indices = (np.arange(target) * curr) // target
+        split_factors = [
+            sum(repeat_indices == i)
+            for i in range(curr)
+        ]
+        new_submobs = []
+        for submob, sf in zip(self.submobjects, split_factors):
+            new_submobs.append(submob)
+            for k in range(1, sf):
+                new_submobs.append(
+                    submob.copy().fade(1)
+                )
+        self.submobjects = new_submobs
         return self
 
     def repeat_submobject(self, submob):
@@ -1014,9 +1045,18 @@ class Mobject(Container):
             sm1.interpolate_color(sm1, sm2, 1)
         return self
 
+    # Errors
+    def throw_error_if_no_points(self):
+        if self.has_no_points():
+            message = "Cannot call Mobject.{}" +\
+                      "for a Mobject with no points"
+            caller_name = sys._getframe(1).f_code.co_name
+            raise Exception(message.format(caller_name))
+
 
 class Group(Mobject):
-    # Alternate name to improve readibility in cases where
-    # the mobject is used primarily for its submobject housing
-    # functionality.
-    pass
+    def __init__(self, *mobjects, **kwargs):
+        if not all([isinstance(m, Mobject) for m in mobjects]):
+            raise Exception("All submobjects must be of type Mobject")
+        Mobject.__init__(self, **kwargs)
+        self.add(*mobjects)

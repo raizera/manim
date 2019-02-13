@@ -1,4 +1,5 @@
 from big_ol_pile_of_manim_imports import *
+from old_projects.clacks.solution2.position_phase_space import ShowMomentumConservation
 
 
 class ConnectionToOptics(Scene):
@@ -25,10 +26,10 @@ class ConnectionToOptics(Scene):
         width += 2 * MED_SMALL_BUFF
         rects = VGroup()
         for k in [0, 2]:
-            rect = DashedMobject(Rectangle(
+            rect = DashedVMobject(Rectangle(
                 height=FRAME_HEIGHT - 1.5,
                 width=width
-            ), dashes_num=100)
+            ), num_dashes=100)
             rect.move_to(everything.target[k])
             rect.to_edge(DOWN, buff=SMALL_BUFF)
             rects.add(rect)
@@ -93,9 +94,9 @@ class ConnectionToOptics(Scene):
         momentum_group = VGroup(momentum_label, momentum_eq)
         groups = VGroup(energy_group, momentum_group)
         for group in groups:
-            group.arrange_submobjects(DOWN, buff=MED_LARGE_BUFF)
+            group.arrange(DOWN, buff=MED_LARGE_BUFF)
             group[0].set_color(GREEN)
-        groups.arrange_submobjects(DOWN, buff=2)
+        groups.arrange(DOWN, buff=2)
         groups.to_edge(LEFT)
         return groups
 
@@ -145,8 +146,8 @@ class ConnectionToOptics(Scene):
         title = VGroup(*map(TextMobject, [
             "Angle of\\\\Incidence",
             "=",
-            "Angle of\\\\Refraction",
-        ])).arrange_submobjects(RIGHT)
+            "Angle of\\\\Reflection",
+        ])).arrange(RIGHT)
         title.set_color(YELLOW)
         h_line = Line(LEFT, RIGHT)
         h_line.match_width(title)
@@ -203,3 +204,115 @@ class ConnectionToOptics(Scene):
 
 class ConnectionToOpticsTransparent(ConnectionToOptics):
     pass
+
+
+class RearrangeMomentumEquation(ShowMomentumConservation):
+    def setup(self):
+        pass  # Don't build all the things
+
+    def construct(self):
+        self.add(FullScreenFadeRectangle(
+            fill_color=BLACK,
+            fill_opacity=0.95,
+        ))
+        self.show_initial_dot_product()
+        self.show_with_x_and_y()
+
+    def show_initial_dot_product(self):
+        equation = self.get_momentum_equation()
+        dot_product = self.get_dot_product(
+            "m_1", "m_2", "v_1", "v_2"
+        )
+        dot_product.next_to(equation, DOWN, LARGE_BUFF)
+        m_array, dot, v_array, rhs = dot_product
+        m_array.get_entries().set_color(BLUE)
+        v_array.get_entries().set_color(RED)
+
+        self.add(equation)
+        self.play(FadeInFromDown(VGroup(
+            m_array.get_brackets(), dot,
+            v_array.get_brackets(), rhs,
+        )))
+        self.play(TransformFromCopy(
+            equation.get_parts_by_tex("m_"),
+            m_array.get_entries(),
+        ))
+        self.play(TransformFromCopy(
+            equation.get_parts_by_tex("v_"),
+            v_array.get_entries(),
+        ))
+        self.wait()
+
+        self.simple_dot_product = dot_product
+        self.momentum_equation = equation
+
+    def show_with_x_and_y(self):
+        simple_dot_product = self.simple_dot_product
+        momentum_equation = self.momentum_equation
+
+        new_equation = TexMobject(
+            "\\sqrt{m_1}",
+            "\\left(", "\\sqrt{m_1}", "v_1", "\\right)",
+            "+", "\\sqrt{m_2}",
+            "\\left(", "\\sqrt{m_2}", "v_2", "\\right)",
+            "=", "\\text{const.}",
+        )
+        new_equation.set_color_by_tex_to_color_map({
+            "m_": BLUE,
+            "v_": RED,
+        })
+        new_equation.next_to(momentum_equation, DOWN, MED_LARGE_BUFF)
+
+        x_term = new_equation[1:5]
+        y_term = new_equation[7:11]
+        x_brace = Brace(x_term, DOWN)
+        y_brace = Brace(y_term, DOWN)
+        dx_dt = x_brace.get_tex("dx / dt")
+        dy_dt = y_brace.get_tex("dy / dt")
+
+        new_eq_group = VGroup(
+            new_equation, x_brace, y_brace, dx_dt, dy_dt
+        )
+        new_eq_group.generate_target()
+
+        new_dot_product = self.get_dot_product()
+        m_array, dot, d_array, rhs = new_dot_product
+        new_dot_product.next_to(momentum_equation, DOWN)
+        new_eq_group.target.next_to(new_dot_product, DOWN, LARGE_BUFF)
+
+        self.play(
+            FadeInFrom(new_equation, UP),
+            simple_dot_product.to_edge, DOWN, LARGE_BUFF,
+        )
+        self.wait()
+        self.play(
+            GrowFromCenter(x_brace),
+            GrowFromCenter(y_brace),
+            FadeInFrom(dx_dt, UP),
+            FadeInFrom(dy_dt, UP),
+        )
+        self.wait()
+        self.play(
+            FadeIn(VGroup(
+                m_array.get_brackets(), dot,
+                d_array.get_brackets(), rhs
+            )),
+            MoveToTarget(new_eq_group)
+        )
+        self.play(TransformFromCopy(
+            VGroup(
+                VGroup(new_equation[0]),
+                VGroup(new_equation[6]),
+            ),
+            m_array.get_entries(),
+        ))
+        self.play(TransformFromCopy(
+            VGroup(dx_dt, dy_dt),
+            d_array.get_entries(),
+        ))
+        self.wait()
+
+
+class NewSceneName(Scene):
+    def construct(self):
+        pass

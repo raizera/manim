@@ -871,8 +871,10 @@ class SingleLighthouseScene(PiCreatureScene):
         self.angle_indicator.next_to(self.angle_arc,RIGHT)
 
         angle_update_func = lambda x: self.light_source.spotlight.opening_angle() / DEGREES
-        ca1 = ContinualChangingDecimal(self.angle_indicator,angle_update_func)
-        self.add(ca1)
+        self.angle_indicator.add_updater(
+            lambda d: d.set_value(angle_update_func())
+        )
+        self.add(self.angle_indicator)
 
         ca2 = AngleUpdater(self.angle_arc, self.light_source.spotlight)
         self.add(ca2)
@@ -4044,11 +4046,11 @@ class FinalSumManipulationScene(PiCreatureScene):
             full_ambient_lights.add(ls.ambient_light)
 
         self.play(
-            LaggedStart(FadeIn, full_lighthouses, lag_ratio = 0.2, run_time = 3),
+            OldLaggedStart(FadeIn, full_lighthouses, lag_ratio = 0.2, run_time = 3),
         )
 
         self.play(
-            LaggedStart(SwitchOn, full_ambient_lights, lag_ratio = 0.2, run_time = 3)
+            OldLaggedStart(SwitchOn, full_ambient_lights, lag_ratio = 0.2, run_time = 3)
         )
 
         # for ls in full_lights.submobjects:
@@ -4397,7 +4399,7 @@ class InfiniteCircleScene(PiCreatureScene):
 
         self.wait()
         self.play(
-            LaggedStart(FadeIn,infsum,lag_ratio = 0.2)
+            OldLaggedStart(FadeIn,infsum,lag_ratio = 0.2)
         )
         self.wait()
 

@@ -19,6 +19,8 @@ from manimlib.constants import *
 from manimlib.animation.animation import *
 from manimlib.animation.composition import *
 from manimlib.animation.creation import *
+from manimlib.animation.fading import *
+from manimlib.animation.growing import *
 from manimlib.animation.indication import *
 from manimlib.animation.movement import *
 from manimlib.animation.numbers import *
@@ -31,11 +33,6 @@ from manimlib.camera.camera import *
 from manimlib.camera.mapping_camera import *
 from manimlib.camera.moving_camera import *
 from manimlib.camera.three_d_camera import *
-
-from manimlib.continual_animation.continual_animation import *
-from manimlib.continual_animation.from_animation import *
-from manimlib.continual_animation.numbers import *
-from manimlib.continual_animation.update import *
 
 from manimlib.mobject.coordinate_systems import *
 from manimlib.mobject.frame import *
@@ -56,7 +53,7 @@ from manimlib.mobject.three_dimensions import *
 from manimlib.mobject.types.image_mobject import *
 from manimlib.mobject.types.point_cloud_mobject import *
 from manimlib.mobject.types.vectorized_mobject import *
-from manimlib.mobject.updater import *
+from manimlib.mobject.mobject_update_utils import *
 from manimlib.mobject.value_tracker import *
 
 from manimlib.for_3b1b_videos.common_scenes import *

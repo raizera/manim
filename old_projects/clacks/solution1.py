@@ -1,6 +1,9 @@
 from big_ol_pile_of_manim_imports import *
-from active_projects.clacks.question import *
+from old_projects.clacks.question import *
 from old_projects.div_curl import ShowTwoPopulations
+
+
+OUTPUT_DIRECTORY = "clacks/solution1"
 
 
 class FromPuzzleToSolution(MovingCameraScene):
@@ -11,7 +14,7 @@ class FromPuzzleToSolution(MovingCameraScene):
 
         rects = VGroup(ScreenRectangle(), ScreenRectangle())
         rects.set_height(3)
-        rects.arrange_submobjects(RIGHT, buff=2)
+        rects.arrange(RIGHT, buff=2)
 
         titles = VGroup(
             TextMobject("Puzzle"),
@@ -360,7 +363,7 @@ class AskAboutFindingNewVelocities(Scene):
             ))
 
         for group in label_groups:
-            self.play(LaggedStart(
+            self.play(OldLaggedStart(
                 ShowCreation, group.rects,
                 lag_ratio=0.8,
                 run_time=1,
@@ -543,7 +546,7 @@ class AskAboutFindingNewVelocities(Scene):
             TexMobject("v_1 = {:.2f}".format(v1)),
             TexMobject("v_2 = {:.2f}".format(v2)),
         )
-        labels.arrange_submobjects(
+        labels.arrange(
             DOWN,
             buff=MED_SMALL_BUFF,
             aligned_edge=LEFT,
@@ -662,7 +665,7 @@ class IntroduceVelocityPhaseSpace(AskAboutFindingNewVelocities):
 
     def show_two_equations(self):
         equations = self.get_energy_and_momentum_expressions()
-        equations.arrange_submobjects(DOWN, buff=LARGE_BUFF)
+        equations.arrange(DOWN, buff=LARGE_BUFF)
         equations.shift(UP)
         v1_terms, v2_terms = v_terms = VGroup(*[
             VGroup(*[
@@ -690,7 +693,7 @@ class IntroduceVelocityPhaseSpace(AskAboutFindingNewVelocities):
             FadeOut(equations[1].highlighted_copy),
             run_time=0.75,
         )
-        self.play(LaggedStart(
+        self.play(OldLaggedStart(
             Indicate, v_terms,
             lag_ratio=0.75,
             rate_func=there_and_back,
@@ -1402,7 +1405,7 @@ class AnalyzeCircleGeometry(CircleDiagramFromSlidingBlocks, MovingCameraScene):
             axes, axes_labels,
             circle, end_zone, end_zone_words,
         )
-        self.play(ShowCreation(lines, run_time=3, rate_func=None))
+        self.play(ShowCreation(lines, run_time=3, rate_func=linear))
         self.wait()
 
         self.set_variables_as_attrs(
@@ -1454,7 +1457,7 @@ class AnalyzeCircleGeometry(CircleDiagramFromSlidingBlocks, MovingCameraScene):
         )))
         movers.remove(movers[-1])
         mover_targets = VGroup(*[mover.target for mover in movers])
-        mover_targets.arrange_submobjects(RIGHT, buff=SMALL_BUFF)
+        mover_targets.arrange(RIGHT, buff=SMALL_BUFF)
         mover_targets.next_to(ORIGIN, DOWN)
         mover_targets.to_edge(LEFT)
 
@@ -1468,11 +1471,11 @@ class AnalyzeCircleGeometry(CircleDiagramFromSlidingBlocks, MovingCameraScene):
             arc.fade(1)
             arc.set_stroke(width=20)
         self.play(Restore(
-            all_arcs, submobject_mode="lagged_start",
+            all_arcs, lag_ratio=0.5,
             run_time=2,
         ))
         self.wait()
-        self.play(LaggedStart(MoveToTarget, movers))
+        self.play(OldLaggedStart(MoveToTarget, movers))
         self.wait()
 
         self.arcs_equation = movers
@@ -1523,8 +1526,8 @@ class AnalyzeCircleGeometry(CircleDiagramFromSlidingBlocks, MovingCameraScene):
             "run_time": 3,
         }
         self.play(
-            LaggedStart(MoveToTarget, all_arcs, **kwargs),
-            LaggedStart(MoveToTarget, arc_counts, **kwargs),
+            OldLaggedStart(MoveToTarget, all_arcs, **kwargs),
+            OldLaggedStart(MoveToTarget, arc_counts, **kwargs),
         )
 
         self.arc_counts = arc_counts
@@ -1579,7 +1582,7 @@ class AnalyzeCircleGeometry(CircleDiagramFromSlidingBlocks, MovingCameraScene):
         to_fade = VGroup(arc_counts, arcs, lines_to_fade)
 
         self.play(
-            LaggedStart(
+            OldLaggedStart(
                 FadeOut, VGroup(*to_fade.family_members_with_points())
             )
         )
@@ -1622,13 +1625,13 @@ class AnalyzeCircleGeometry(CircleDiagramFromSlidingBlocks, MovingCameraScene):
         self.play(
             Restore(
                 lines,
-                submobject_mode="lagged_start",
+                lag_ratio=0.5,
                 run_time=2
             ),
             FadeOut(self.center_lines_group),
             FadeOut(self.three_dots),
         )
-        self.play(LaggedStart(
+        self.play(OldLaggedStart(
             ApplyFunction, every_other_line,
             lambda line: (
                 lambda l: l.scale(10 / l.get_length()).set_stroke(BLUE, 3),
@@ -1675,10 +1678,8 @@ class AnalyzeCircleGeometry(CircleDiagramFromSlidingBlocks, MovingCameraScene):
             two_theta_labels.add(label)
 
             wedge = arc.copy()
-            wedge.add_control_points([
-                *3 * [ORIGIN],
-                *3 * [wedge.points[0]]
-            ])
+            wedge.add_line_to(ORIGIN)
+            wedge.add_line_to(wedge.points[0])
             wedge.set_stroke(width=0)
             wedge.set_fill(arc.get_color(), 0.2)
             wedges.add(wedge)
@@ -2054,7 +2055,7 @@ class AddTwoThetaManyTimes(Scene):
             result[1].scale(1.5, about_edge=LEFT)
             return result
 
-        comp_pi = updating_mobject_from_func(get_comp_pi)
+        comp_pi = always_redraw(get_comp_pi)
 
         return VGroup(int_mob, tex_mob, rhs, comp_pi)
 
@@ -2110,7 +2111,7 @@ class ComputeThetaFor1e4(AnalyzeCircleGeometry):
         theta_label.next_to(arc, DOWN, SMALL_BUFF)
 
         self.add(end_zone, axes, circle)
-        self.play(ShowCreation(lines, rate_func=None))
+        self.play(ShowCreation(lines, rate_func=linear))
         self.play(
             lines_to_fade.set_stroke, WHITE, 1, 0.3,
             ShowCreation(arc),
@@ -2223,7 +2224,7 @@ class ComputeThetaFor1e4(AnalyzeCircleGeometry):
         # Swap last two
         sm = movers.submobjects
         sm[-1], sm[-2] = sm[-2], sm[-1]
-        self.play(LaggedStart(
+        self.play(OldLaggedStart(
             Transform, movers[:-1],
             lambda m: (m, m.target),
             lag_ratio=1,
@@ -2252,7 +2253,7 @@ class ThetaChart(Scene):
             TextMobject("$\\theta$ value"),
         ])
         titles.scale(1.5)
-        titles.arrange_submobjects(RIGHT, buff=1.5)
+        titles.arrange(RIGHT, buff=1.5)
         titles[1].shift(MED_SMALL_BUFF * LEFT)
         titles[2].shift(MED_SMALL_BUFF * RIGHT)
         titles.to_corner(UL)
@@ -2271,8 +2272,8 @@ class ThetaChart(Scene):
         lines.set_stroke(WHITE, 1)
 
         self.play(
-            LaggedStart(FadeInFromDown, titles),
-            LaggedStart(ShowCreation, lines, lag_ratio=0.8),
+            OldLaggedStart(FadeInFromDown, titles),
+            OldLaggedStart(ShowCreation, lines, lag_ratio=0.8),
         )
 
         self.h_line = h_line
@@ -2315,11 +2316,11 @@ class ThetaChart(Scene):
             h_lines.add(h_line)
 
         self.play(
-            LaggedStart(
+            OldLaggedStart(
                 FadeInFromDown,
                 VGroup(*[em[:2] for em in entry_mobs]),
             ),
-            LaggedStart(ShowCreation, h_lines[1:]),
+            OldLaggedStart(ShowCreation, h_lines[1:]),
             lag_ratio=0.1,
             run_time=5,
         )
@@ -2330,7 +2331,7 @@ class ThetaChart(Scene):
     def show_values(self):
         values = VGroup(*[em[2] for em in self.entry_mobs])
         for value in values:
-            self.play(LaggedStart(
+            self.play(OldLaggedStart(
                 FadeIn, value,
                 lag_ratio=0.1,
                 run_time=0.5
@@ -2547,7 +2548,7 @@ class ActanAndTanGraphs(GraphScene):
                 label.next_to(graph.point_from_proportion(0.75), LEFT)
 
         arctan_x_tracker = ValueTracker(3 * PI / 8)
-        arctan_v_line = updating_mobject_from_func(
+        arctan_v_line = always_redraw(
             lambda: self.get_vertical_line_to_graph(
                 arctan_x_tracker.get_value(),
                 arctan_graph,
@@ -2556,7 +2557,7 @@ class ActanAndTanGraphs(GraphScene):
             )
         )
         tan_x_tracker = ValueTracker(2 * PI / 8)
-        tan_v_line = updating_mobject_from_func(
+        tan_v_line = always_redraw(
             lambda: self.get_vertical_line_to_graph(
                 tan_x_tracker.get_value(),
                 tan_graph,
@@ -2640,9 +2641,9 @@ class UnitCircleIntuition(Scene):
         def get_r_line():
             return Line(
                 circle.get_center(),
-                circle.get_point_from_angle(get_theta())
+                circle.point_at_angle(get_theta())
             )
-        r_line = updating_mobject_from_func(get_r_line)
+        r_line = always_redraw(get_r_line)
 
         def get_arc(radius=None, **kwargs):
             if radius is None:
@@ -2655,8 +2656,8 @@ class UnitCircleIntuition(Scene):
                 arc_center=circle.get_center(),
                 **kwargs
             )
-        arc = updating_mobject_from_func(get_arc)
-        self.circle_arc = updating_mobject_from_func(
+        arc = always_redraw(get_arc)
+        self.circle_arc = always_redraw(
             lambda: get_arc(radius=circle.radius, color=RED)
         )
 
@@ -2669,10 +2670,10 @@ class UnitCircleIntuition(Scene):
             vect = (get_norm(vect) + 2 * SMALL_BUFF) * normalize(vect)
             label.move_to(center + vect)
             return label
-        theta_label = updating_mobject_from_func(get_theta_label)
+        theta_label = always_redraw(get_theta_label)
 
         def get_height_line():
-            p2 = circle.get_point_from_angle(get_theta())
+            p2 = circle.point_at_angle(get_theta())
             p1 = np.array(p2)
             p1[1] = circle.get_center()[1]
             return Line(
@@ -2680,18 +2681,18 @@ class UnitCircleIntuition(Scene):
                 stroke_color=YELLOW,
                 stroke_width=3,
             )
-        self.height_line = updating_mobject_from_func(get_height_line)
+        self.height_line = always_redraw(get_height_line)
 
         def get_width_line():
             p2 = circle.get_center()
-            p1 = circle.get_point_from_angle(get_theta())
+            p1 = circle.point_at_angle(get_theta())
             p1[1] = p2[1]
             return Line(
                 p1, p2,
                 stroke_color=PINK,
                 stroke_width=3,
             )
-        self.width_line = updating_mobject_from_func(get_width_line)
+        self.width_line = always_redraw(get_width_line)
 
         def get_h_label():
             label = TexMobject("h")
@@ -2701,7 +2702,7 @@ class UnitCircleIntuition(Scene):
             label.set_stroke(BLACK, 3, background=True)
             label.next_to(height_line, RIGHT, SMALL_BUFF)
             return label
-        self.h_label = updating_mobject_from_func(get_h_label)
+        self.h_label = always_redraw(get_h_label)
 
         def get_w_label():
             label = TexMobject("w")
@@ -2709,7 +2710,7 @@ class UnitCircleIntuition(Scene):
             label.match_color(width_line)
             label.next_to(width_line, DOWN, SMALL_BUFF)
             return label
-        self.w_label = updating_mobject_from_func(get_w_label)
+        self.w_label = always_redraw(get_w_label)
 
         self.add(r_line, theta_label, arc, self.radius_line)
         self.play(
@@ -2897,7 +2898,7 @@ class ConservationLawSummary(Scene):
             equation.set_color_by_tex("m_", BLUE)
             equation.set_color_by_tex("v_", RED)
 
-        words.arrange_submobjects(
+        words.arrange(
             DOWN, buff=3,
         )
         words.to_edge(LEFT, buff=1.5)
@@ -2922,7 +2923,7 @@ class ConservationLawSummary(Scene):
         self.add(energy_group, momentum_group)
         self.wait()
         self.play(
-            LaggedStart(
+            OldLaggedStart(
                 ShowCreationThenDestruction,
                 red_energy_word
             ),
@@ -2966,7 +2967,7 @@ class FinalCommentsOnPhaseSpace(Scene):
                 stroke_width=5,
                 buff=0,
             ))
-        images.arrange_submobjects(RIGHT)
+        images.arrange(RIGHT)
         images.move_to(DOWN)
 
         arrows = VGroup(*[
@@ -3003,7 +3004,7 @@ class FinalCommentsOnPhaseSpace(Scene):
             word.scale(2)
 
         group = VGroup(state, arrow, point)
-        group.arrange_submobjects(RIGHT, buff=MED_LARGE_BUFF)
+        group.arrange(RIGHT, buff=MED_LARGE_BUFF)
         group.move_to(2.5 * DOWN)
 
         dynamics.move_to(state, RIGHT)

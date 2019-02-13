@@ -99,14 +99,14 @@ class ShowShadows(ThreeDScene):
         self.gamma_tracker = ValueTracker(0)
 
     def setup_object_and_shadow(self):
-        self.obj3d = updating_mobject_from_func(self.get_reoriented_object)
-        self.shadow = updating_mobject_from_func(lambda: get_shadow(self.obj3d))
+        self.obj3d = always_redraw(self.get_reoriented_object)
+        self.shadow = always_redraw(lambda: get_shadow(self.obj3d))
 
     def add_shadow_area_label(self):
         text = TextMobject("Shadow area: ")
         decimal = DecimalNumber(0)
         label = VGroup(text, decimal)
-        label.arrange_submobjects(RIGHT)
+        label.arrange(RIGHT)
         label.scale(1.5)
         label.move_to(self.area_label_center - decimal.get_center())
         self.shadow_area_label = label
@@ -117,22 +117,23 @@ class ShowShadows(ThreeDScene):
         #     self.add_fixed_in_frame_mobjects(decimal)
 
         # decimal.add_updater(update_decimal)
-        continual_update = ContinualChangingDecimal(
-            decimal,
-            lambda a: get_area(self.shadow),
-            position_update_func=lambda d: self.add_fixed_in_frame_mobjects(d)
+        decimal.add_updater(
+            lambda d: d.set_value(get_area(self.shadow))
+        )
+        decimal.add_updater(
+            lambda d: self.add_fixed_in_frame_mobjects(d)
         )
 
         # self.add_fixed_orientation_mobjects(label)
         self.add_fixed_in_frame_mobjects(label)
         self.add(label)
-        self.add(continual_update)
+        self.add(decimal)
 
     def add_surface_area_label(self):
         text = TextMobject("Surface area: ")
         decimal = DecimalNumber(self.surface_area)
         label = VGroup(text, decimal)
-        label.arrange_submobjects(RIGHT)
+        label.arrange(RIGHT)
         label.scale(1.25)
         label.set_fill(YELLOW)
         label.set_background_stroke(width=3)
@@ -145,12 +146,12 @@ class ShowShadows(ThreeDScene):
         # Show creation
         obj3d = self.obj3d.copy()
         obj3d.clear_updaters()
-        temp_shadow = updating_mobject_from_func(lambda: get_shadow(obj3d))
+        temp_shadow = always_redraw(lambda: get_shadow(obj3d))
         self.add(temp_shadow)
         self.move_camera(
             **self.initial_orientation_config,
             added_anims=[
-                LaggedStart(DrawBorderThenFill, obj3d)
+                OldLaggedStart(DrawBorderThenFill, obj3d)
             ],
             run_time=2
         )
@@ -275,7 +276,7 @@ class ShowInfinitelyFarLightSource(ShowShadows):
         source_obj3d.set_shade_in_3d(False)
         source_obj3d.fade(1)
 
-        self.play(LaggedStart(ShowCreation, lines))
+        self.play(OldLaggedStart(ShowCreation, lines))
         self.wait()
         self.add(source_obj3d, lines)
         self.play(

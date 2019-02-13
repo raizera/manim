@@ -18,6 +18,11 @@ FOX_COLOR = "#DF7F20"
 RABBIT_COLOR = "#C6D6EF"
 
 
+# Warning, this file uses ContinualChangingDecimal,
+# which has since been been deprecated.  Use a mobject
+# updater instead
+
+
 # Helper functions
 def get_flow_start_points(x_min=-8, x_max=8,
                           y_min=-5, y_max=5,
@@ -414,7 +419,7 @@ class StreamLineAnimation(ContinualAnimation):
         "line_anim_class": ShowPassingFlash,
         "line_anim_config": {
             "run_time": 4,
-            "rate_func": None,
+            "rate_func": linear,
             "time_width": 0.3,
         },
     }
@@ -487,12 +492,12 @@ class Introduction(MovingCameraScene):
         stream_lines = StreamLines(
             div_func, **self.stream_lines_config
         )
-        stream_lines.shuffle_submobjects()
+        stream_lines.shuffle()
         div_title = self.get_title("Divergence")
 
         self.add(div_vector_field)
         self.play(
-            LaggedStart(ShowPassingFlash, stream_lines),
+            OldLaggedStart(ShowPassingFlash, stream_lines),
             FadeIn(div_title[0]),
             *list(map(GrowFromCenter, div_title[1]))
         )
@@ -507,7 +512,7 @@ class Introduction(MovingCameraScene):
         stream_lines = StreamLines(
             curl_func, **self.stream_lines_config
         )
-        stream_lines.shuffle_submobjects()
+        stream_lines.shuffle()
         curl_title = self.get_title("Curl")
 
         self.play(
@@ -576,7 +581,7 @@ class ShowWritingTrajectory(TeacherStudentsScene):
             self.get_student_changes(*["sassy"] * 3)
         )
         self.play(
-            LaggedStart(
+            OldLaggedStart(
                 ApplyMethod, dashed_path,
                 lambda m: (m.scale, 0),
                 remover=True
@@ -646,7 +651,7 @@ class ShowWritingTrajectory(TeacherStudentsScene):
             s0.target_center += dt * LEFT * 0.5
             s0.move_to(s0.target_center)
 
-        self.add(ContinualUpdateFromTimeFunc(s0, update_s0))
+        self.add(Mobject.add_updater(s0, update_s0))
         self.change_student_modes("tired", "horrified", "sad")
         self.play(s0.look, LEFT)
         self.wait(4)
@@ -758,7 +763,7 @@ class CylinderModel(Scene):
             dot_update,
             exp_tex_update,
             exp_decimal_update,
-            LaggedStart(
+            OldLaggedStart(
                 FadeIn, sample_labels,
                 remover=True,
                 rate_func=there_and_back,
@@ -824,7 +829,7 @@ class CylinderModel(Scene):
         self.play(
             ShowCreationThenDestruction(
                 stream_lines_copy,
-                submobject_mode="all_at_once",
+                lag_ratio=0,
                 run_time=3,
             )
         )
@@ -843,7 +848,7 @@ class CylinderModel(Scene):
         shift_val = 0.1 * LEFT + 0.2 * UP
         scale_factor = get_norm(RIGHT - shift_val)
         movers = VGroup(self.warped_grid, self.unit_circle)
-        self.unit_circle.insert_n_anchor_points(50)
+        self.unit_circle.insert_n_curves(50)
 
         stream_lines = self.get_stream_lines()
         stream_lines.scale(scale_factor)
@@ -990,7 +995,7 @@ class ElectricField(CylinderModel, MovingCameraScene):
             for method in (get_proton, get_electron)
         ]
         for group in groups:
-            group.arrange_submobjects(RIGHT, buff=MED_SMALL_BUFF)
+            group.arrange(RIGHT, buff=MED_SMALL_BUFF)
             random.shuffle(group.submobjects)
         protons.next_to(FRAME_HEIGHT * DOWN / 2, DOWN)
         electrons.next_to(FRAME_HEIGHT * UP / 2, UP)
@@ -1000,12 +1005,12 @@ class ElectricField(CylinderModel, MovingCameraScene):
             FadeOut(self.unit_circle),
             FadeOut(self.title),
             FadeOut(self.func_label),
-            LaggedStart(GrowArrow, vector_field)
+            OldLaggedStart(GrowArrow, vector_field)
         )
         self.remove_foreground_mobjects(self.title, self.func_label)
         self.wait()
         for group, vect in (protons, UP), (electrons, DOWN):
-            self.play(LaggedStart(
+            self.play(OldLaggedStart(
                 ApplyMethod, group,
                 lambda m: (m.shift, (FRAME_HEIGHT + 1) * vect),
                 run_time=3,
@@ -1059,8 +1064,8 @@ class ElectricField(CylinderModel, MovingCameraScene):
             self.vector_field, unit_circle, protons, electrons
         )
         self.play(
-            LaggedStart(VFadeIn, protons),
-            LaggedStart(VFadeIn, electrons),
+            OldLaggedStart(VFadeIn, protons),
+            OldLaggedStart(VFadeIn, electrons),
         )
         self.play(
             self.camera.frame.scale, 0.7,
@@ -1108,9 +1113,11 @@ class ElectricField(CylinderModel, MovingCameraScene):
             y = voltage_point.get_center()[1]
             return 10 - y
 
-        voltage_update = ContinualChangingDecimal(
-            voltage, get_voltage,
-            position_update_func=lambda v: v.next_to(
+        voltage_update = voltage.add_updater(
+            lambda d: d.set_value(get_voltage),
+        )
+        voltage.add_updater(
+            lambda d: d.next_to(
                 voltage_point, UP, SMALL_BUFF
             )
         )
@@ -1118,7 +1125,7 @@ class ElectricField(CylinderModel, MovingCameraScene):
         self.play(ShowCreation(
             h_lines,
             run_time=2,
-            submobject_mode="all_at_once"
+            lag_ratio=0
         ))
         self.add(voltage_update)
         self.add_foreground_mobjects(voltage)
@@ -1149,9 +1156,9 @@ class AskQuestions(TeacherStudentsScene):
         curl = VGroup(curl_name, curl_tex)
         for group in div, curl:
             group[1].set_color_by_tex(vec_tex("v"), YELLOW)
-            group.arrange_submobjects(DOWN)
+            group.arrange(DOWN)
         topics = VGroup(div, curl)
-        topics.arrange_submobjects(DOWN, buff=LARGE_BUFF)
+        topics.arrange(DOWN, buff=LARGE_BUFF)
         topics.move_to(self.hold_up_spot, DOWN)
         div.save_state()
         div.move_to(self.hold_up_spot, DOWN)
@@ -1232,7 +1239,7 @@ class ScopeMeiosis(PiCreatureScene):
             VGroup(title, self.get_lines(title, 3))
             for title in section_titles
         ])
-        sections.arrange_submobjects(
+        sections.arrange(
             DOWN, buff=MED_LARGE_BUFF,
             aligned_edge=LEFT
         )
@@ -1272,7 +1279,7 @@ class ScopeMeiosis(PiCreatureScene):
             Line(3 * LEFT, 3 * RIGHT, color=LIGHT_GREY)
             for x in range(n_lines)
         ])
-        lines.arrange_submobjects(DOWN, buff=MED_SMALL_BUFF)
+        lines.arrange(DOWN, buff=MED_SMALL_BUFF)
         lines.next_to(
             title, DOWN,
             buff=MED_LARGE_BUFF,
@@ -1341,15 +1348,15 @@ class TopicsAndConnections(Scene):
         full_rect = FullScreenFadeRectangle()
 
         self.play(
-            LaggedStart(
+            OldLaggedStart(
                 ApplyMethod, dots,
                 lambda d: (d.restore,)
             ),
-            LaggedStart(Write, topics),
+            OldLaggedStart(Write, topics),
         )
         self.wait()
         self.play(
-            LaggedStart(ShowCreation, connections),
+            OldLaggedStart(ShowCreation, connections),
             Animation(topics),
             Animation(dots),
         )
@@ -1428,9 +1435,9 @@ class IntroduceVectorField(Scene):
             dot.target = vector
             dots.add(dot)
 
-        self.play(LaggedStart(GrowFromCenter, dots))
+        self.play(OldLaggedStart(GrowFromCenter, dots))
         self.wait()
-        self.play(LaggedStart(MoveToTarget, dots, remover=True))
+        self.play(OldLaggedStart(MoveToTarget, dots, remover=True))
         self.add(vector_field)
         self.wait()
 
@@ -1498,7 +1505,7 @@ class IntroduceVectorField(Scene):
             )
             for color in (BLUE, RED)
         ])
-        magnet.arrange_submobjects(RIGHT, buff=0)
+        magnet.arrange(RIGHT, buff=0)
         for char, vect in ("S", LEFT), ("N", RIGHT):
             letter = TextMobject(char)
             edge = magnet.get_edge_center(vect)
@@ -1548,12 +1555,12 @@ class ShorteningLongVectors(IntroduceVectorField):
 
         self.add(adjusted)
         self.wait()
-        self.play(LaggedStart(
+        self.play(OldLaggedStart(
             MoveToTarget, adjusted,
             run_time=3
         ))
         self.wait()
-        self.play(LaggedStart(
+        self.play(OldLaggedStart(
             ApplyMethod, adjusted,
             lambda m: (m.restore,),
             run_time=3
@@ -1587,8 +1594,8 @@ class ChangingElectricField(Scene):
                 particle.shift(particle.velocity * dt)
 
         self.add(
-            ContinualUpdate(vector_field, update_vector_field),
-            ContinualUpdateFromTimeFunc(particles, update_particles),
+            Mobject.add_updater(vector_field, update_vector_field),
+            Mobject.add_updater(particles, update_particles),
         )
         self.wait(20)
 
@@ -1605,7 +1612,7 @@ class ChangingElectricField(Scene):
             particles.add(particle)
             particle.shift(np.random.normal(0, 0.2, 3))
 
-        particles.arrange_submobjects_in_grid(buff=LARGE_BUFF)
+        particles.arrange_in_grid(buff=LARGE_BUFF)
         return particles
 
     def get_vector_field(self):
@@ -1739,7 +1746,7 @@ class DefineDivergence(ChangingElectricField):
         particles = self.get_particles()
         random.shuffle(particles.submobjects)
         particles.remove(particles[0])
-        particles.arrange_submobjects_in_grid(
+        particles.arrange_in_grid(
             n_cols=4, buff=3
         )
         for particle in particles:
@@ -1752,12 +1759,12 @@ class DefineDivergence(ChangingElectricField):
         vector_field = self.get_vector_field()
 
         self.play(
-            LaggedStart(GrowArrow, vector_field),
-            LaggedStart(GrowFromCenter, particles),
+            OldLaggedStart(GrowArrow, vector_field),
+            OldLaggedStart(GrowFromCenter, particles),
             run_time=4
         )
         self.wait()
-        self.play(LaggedStart(FadeOut, particles))
+        self.play(OldLaggedStart(FadeOut, particles))
 
     def show_flow(self):
         stream_lines = StreamLines(
@@ -1797,8 +1804,8 @@ class DefineDivergence(ChangingElectricField):
 
             self.play(
                 self.vector_field.set_fill, {"opacity": 0.5},
-                LaggedStart(
-                    LaggedStart, vector_circle_groups,
+                OldLaggedStart(
+                    OldLaggedStart, vector_circle_groups,
                     lambda vcg: (GrowArrow, vcg),
                 ),
             )
@@ -1822,7 +1829,7 @@ class DefineDivergence(ChangingElectricField):
             "\\text{div} \\, \\textbf{F}(x, y) = "
         )
         div_tex.add_background_rectangle()
-        div_tex_update = ContinualUpdate(
+        div_tex_update = Mobject.add_updater(
             div_tex, lambda m: m.next_to(circle, UP, SMALL_BUFF)
         )
 
@@ -1889,7 +1896,8 @@ class DefineDivergenceSymbols(Scene):
         output = DecimalNumber(0, include_sign=True)
         output.next_to(tex_mob, RIGHT)
         time_tracker = ValueTracker()
-        self.add(ContinualMovement(time_tracker, rate=1))
+        always_shift(time_tracker, rate=1)
+        self.add(time_tracker)
         output_animation = ContinualChangingDecimal(
             output, lambda a: 3 * np.cos(int(time_tracker.get_value())),
         )
@@ -2066,7 +2074,7 @@ class DivergenceAsNewFunction(Scene):
         )
 
         self.add(func_tex, rhs)
-        # self.add(ContinualUpdate(
+        # self.add(Mobject.add_updater(
         #     rhs, lambda m: m.next_to(func_tex, RIGHT)
         # ))
 
@@ -2090,7 +2098,7 @@ class DivergenceAsNewFunction(Scene):
         out_vect.move_to(rhs)
         out_vect.set_fill(opacity=0)
         self.play(out_vect.restore)
-        self.out_vect_update = ContinualUpdate(
+        self.out_vect_update = Mobject.add_updater(
             out_vect,
             lambda ov: Transform(ov, get_out_vect()).update(1)
         )
@@ -2098,7 +2106,7 @@ class DivergenceAsNewFunction(Scene):
         self.add(self.out_vect_update)
         self.add(out_x_update, out_y_update)
 
-        self.add(ContinualUpdate(
+        self.add(Mobject.add_updater(
             VGroup(out_x, out_y),
             lambda m: m.match_style(out_vect)
         ))
@@ -2160,14 +2168,14 @@ class DivergenceAsNewFunction(Scene):
         def show_flow():
             stream_lines = get_stream_lines()
             random.shuffle(stream_lines.submobjects)
-            self.play(LaggedStart(
+            self.play(OldLaggedStart(
                 ShowCreationThenDestruction,
                 stream_lines,
                 remover=True
             ))
 
         vector_ring = get_vector_ring()
-        vector_ring_update = ContinualUpdate(
+        vector_ring_update = Mobject.add_updater(
             vector_ring,
             lambda vr: Transform(vr, get_vector_ring()).update(1)
         )
@@ -2195,15 +2203,15 @@ class DivergenceAsNewFunction(Scene):
         )
         # This line is a dumb hack around a Scene bug
         self.add(*[
-            ContinualUpdate(
+            Mobject.add_updater(
                 mob, lambda m: m.set_fill(None, 0)
             )
             for mob in (out_x, out_y)
         ])
         self.add_foreground_mobjects(div_tex)
         self.play(
-            LaggedStart(GrowArrow, vector_field),
-            LaggedStart(GrowArrow, vector_ring),
+            OldLaggedStart(GrowArrow, vector_field),
+            OldLaggedStart(GrowArrow, vector_ring),
         )
         self.add(vector_ring_update)
         self.wait()
@@ -2368,7 +2376,7 @@ class IntroduceCurl(IntroduceVectorField):
             key=lambda v: v.get_length()
         )
 
-        self.play(LaggedStart(GrowArrow, vector_field))
+        self.play(OldLaggedStart(GrowArrow, vector_field))
         self.wait()
 
     def begin_flow(self):
@@ -2406,11 +2414,9 @@ class IntroduceCurl(IntroduceVectorField):
                 label.add_background_rectangle()
                 label.next_to(arrows, DOWN)
                 self.add_foreground_mobjects(label)
-                self.add(ContinualRotation(
-                    arrows, rate=u * 30 * DEGREES
-                ))
+                always_rotate(arrows, rate=u * 30 * DEGREES)
                 self.play(
-                    VFadeIn(arrows),
+                    FadeIn(arrows),
                     FadeIn(label)
                 )
         self.wait(2)
@@ -2436,7 +2442,6 @@ class IntroduceCurl(IntroduceVectorField):
         result = VGroup(*[
             Arrow(
                 *points,
-                use_rectangular_stem=False,
                 buff=2 * SMALL_BUFF,
                 path_arc=90 * DEGREES
             ).set_stroke(width=5)
@@ -2462,7 +2467,7 @@ class ShearCurl(IntroduceCurl):
         vector_field.submobjects.key=sort(
             key=lambda a: a.get_length()
         )
-        self.play(LaggedStart(GrowArrow, vector_field))
+        self.play(OldLaggedStart(GrowArrow, vector_field))
 
     def comment_on_relevant_region(self):
         circle = Circle(color=WHITE, radius=0.75)
@@ -2489,12 +2494,11 @@ class ShearCurl(IntroduceCurl):
         )
         twig.add(Dot(twig.get_center()))
         twig.move_to(circle)
-        twig_rotation = ContinualRotation(
+        always_rotate(
             twig, rate=-90 * DEGREES,
-            start_up_time=8,
         )
 
-        self.play(FadeInAndShiftFromDirection(twig, UP))
+        self.play(FadeInFrom(twig, UP))
         self.add(twig_rotation)
         self.wait(16)
 
@@ -2566,7 +2570,7 @@ class ShowCurlAtVariousPoints(IntroduceCurl):
         dot = Dot()
         circle = Circle(radius=0.25, color=WHITE)
         circle.move_to(dot)
-        circle_update = ContinualUpdate(
+        circle_update = Mobject.add_updater(
             circle,
             lambda m: m.move_to(dot)
         )
@@ -2575,7 +2579,7 @@ class ShowCurlAtVariousPoints(IntroduceCurl):
             "\\text{curl} \\, \\textbf{F}(x, y) = "
         )
         curl_tex.add_background_rectangle(buff=0.025)
-        curl_tex_update = ContinualUpdate(
+        curl_tex_update = Mobject.add_updater(
             curl_tex,
             lambda m: m.next_to(circle, UP, SMALL_BUFF)
         )
@@ -2646,7 +2650,6 @@ class IllustrationUseVennDiagram(Scene):
             illustrated_by.get_bottom(),
             ff_circle.get_left(),
             path_arc=90 * DEGREES,
-            use_rectangular_stem=False,
             color=YELLOW,
         )
         illustrated_by_arrow.pointwise_become_partial(
@@ -2685,7 +2688,7 @@ class IllustrationUseVennDiagram(Scene):
             Animation(fluid_flow),
             Animation(ff_circle),
         )
-        self.play(LaggedStart(
+        self.play(OldLaggedStart(
             FadeIn, examples,
             run_time=3,
         ))
@@ -2736,7 +2739,7 @@ class MaxwellsEquations(Scene):
                 """,
             ]
         ])
-        equations.arrange_submobjects(
+        equations.arrange(
             DOWN, aligned_edge=LEFT,
             buff=MED_LARGE_BUFF
         )
@@ -2748,7 +2751,7 @@ class MaxwellsEquations(Scene):
                 "\\text{Magnetic field: } \\textbf{B}",
             ]
         ])
-        field_definitions.arrange_submobjects(
+        field_definitions.arrange(
             RIGHT, buff=MED_LARGE_BUFF
         )
         field_definitions.next_to(title, DOWN, MED_LARGE_BUFF)
@@ -2757,7 +2760,7 @@ class MaxwellsEquations(Scene):
 
         self.add(title)
         self.add(field_definitions)
-        self.play(LaggedStart(
+        self.play(OldLaggedStart(
             FadeIn, equations,
             run_time=3,
             lag_range=0.4
@@ -2886,7 +2889,7 @@ class IllustrateGaussLaw(DefineDivergence, MovingCameraScene):
             get_proton(radius=0.1),
             get_electron(radius=0.1),
         )
-        particles.arrange_submobjects(RIGHT, buff=2.25)
+        particles.arrange(RIGHT, buff=2.25)
         particles.shift(0.25 * UP)
         for particle, sign in zip(particles, [+1, -1]):
             particle.charge = sign
@@ -2953,7 +2956,7 @@ class IllustrateGaussMagnetic(IllustrateGaussLaw):
         vector_field.submobjects.sort(
             key=lambda a: -a1.get_length()
         )
-        self.play(LaggedStart(GrowArrow, vector_field))
+        self.play(OldLaggedStart(GrowArrow, vector_field))
         self.add_foreground_mobjects(
             vector_field, *self.foreground_mobjects
         )
@@ -3021,7 +3024,7 @@ class ShowTwoPopulations(Scene):
         for mob in examples:
             mob.save_state()
             mob.set_height(3)
-        examples.arrange_submobjects(LEFT, buff=2)
+        examples.arrange(LEFT, buff=2)
 
         preditor, prey = words = VGroup(
             TextMobject("Predator"),
@@ -3035,13 +3038,13 @@ class ShowTwoPopulations(Scene):
                 Write(word, run_time=1),
             )
         self.play(
-            LaggedStart(
+            OldLaggedStart(
                 ApplyMethod, examples,
                 lambda m: (m.restore,)
             ),
-            LaggedStart(FadeOut, words),
+            OldLaggedStart(FadeOut, words),
             *[
-                LaggedStart(
+                OldLaggedStart(
                     FadeIn,
                     group[1:],
                     run_time=4,
@@ -3084,10 +3087,10 @@ class ShowTwoPopulations(Scene):
 
             return update
 
-        self.add(ContinualUpdate(
+        self.add(Mobject.add_updater(
             foxes, get_updater(get_num_foxes)
         ))
-        self.add(ContinualUpdate(
+        self.add(Mobject.add_updater(
             rabbits, get_updater(get_num_rabbits)
         ))
 
@@ -3110,7 +3113,7 @@ class ShowTwoPopulations(Scene):
         ))
 
         for count in num_foxes, num_rabbits:
-            self.add(ContinualUpdate(
+            self.add(Mobject.add_updater(
                 count, self.update_count_color,
             ))
 
@@ -3163,7 +3166,7 @@ class ShowTwoPopulations(Scene):
         )
         for label in labels:
             label.scale(self.count_word_scale_val)
-        labels.arrange_submobjects(RIGHT, buff=2)
+        labels.arrange(RIGHT, buff=2)
         labels.to_edge(UP)
         return labels
 
@@ -3218,12 +3221,12 @@ class PhaseSpaceOfPopulationModel(ShowTwoPopulations, PiCreatureScene, MovingCam
             VGroup(
                 method().set_height(0.75),
                 TextMobject("Population"),
-            ).arrange_submobjects(RIGHT, buff=MED_SMALL_BUFF)
+            ).arrange(RIGHT, buff=MED_SMALL_BUFF)
             for method in (self.get_rabbit, self.get_fox)
         ])
         for axis, label, vect in zip(axes, axes_labels, [RIGHT, UP]):
             label.next_to(
-                axis.main_line, vect,
+                axis, vect,
                 submobject_to_align=label[0]
             )
 
@@ -3261,7 +3264,7 @@ class PhaseSpaceOfPopulationModel(ShowTwoPopulations, PiCreatureScene, MovingCam
                 position_update_func=lambda m: m.move_to(tens[i])
             )
         coord_pair.add_background_rectangle()
-        coord_pair_update = ContinualUpdate(
+        coord_pair_update = Mobject.add_updater(
             coord_pair, lambda m: m.next_to(dot, UR, SMALL_BUFF)
         )
         pop_sizes_updates = [get_pop_size_update(i) for i in (0, 1)]
@@ -3338,7 +3341,7 @@ class PhaseSpaceOfPopulationModel(ShowTwoPopulations, PiCreatureScene, MovingCam
             ShowCreation(rect)
         )
         self.play(
-            LaggedStart(FadeIn, equations),
+            OldLaggedStart(FadeIn, equations),
             randy.change, "confused", equations,
             VFadeIn(randy),
         )
@@ -3372,7 +3375,7 @@ class PhaseSpaceOfPopulationModel(ShowTwoPopulations, PiCreatureScene, MovingCam
         dot_vector = get_dot_vector()
 
         self.play(
-            LaggedStart(GrowArrow, vector_field),
+            OldLaggedStart(GrowArrow, vector_field),
             randy.change, "thinking", dot,
             Animation(self.differential_equation_group)
         )
@@ -3480,7 +3483,7 @@ class PhaseFlowQuestions(Scene):
             ),
             TextMobject("Where are there cycles?"),
         )
-        questions.arrange_submobjects(DOWN, buff=LARGE_BUFF)
+        questions.arrange(DOWN, buff=LARGE_BUFF)
         questions.to_corner(UR)
         for question in questions:
             self.play(FadeInFromDown(question))
@@ -3608,7 +3611,7 @@ class NablaNotation(PiCreatureScene, MovingCameraScene):
         )
         curl_nabla = curl_equation.get_part_by_tex("\\nabla")
         equations = VGroup(div_equation, curl_equation)
-        equations.arrange_submobjects(DOWN, buff=LARGE_BUFF)
+        equations.arrange(DOWN, buff=LARGE_BUFF)
         equations.next_to(morty, UP, 2)
         equations.to_edge(LEFT)
 
@@ -3654,7 +3657,7 @@ class NablaNotation(PiCreatureScene, MovingCameraScene):
         ])
         colors = [BLUE, YELLOW]
         for lhs, color in zip(lhs_groups, colors):
-            lhs.arrange_submobjects(RIGHT, buff=MED_SMALL_BUFF)
+            lhs.arrange(RIGHT, buff=MED_SMALL_BUFF)
             VGroup(lhs[0].brackets, lhs[1]).set_color(color)
         div_lhs.to_edge(UP)
         curl_lhs.next_to(div_lhs, DOWN, buff=LARGE_BUFF)
@@ -3739,7 +3742,7 @@ class DivCurlDotCross(Scene):
             ScreenRectangle(height=2.5)
             for n in range(4)
         ])
-        rects.arrange_submobjects_in_grid(n_rows=2, buff=LARGE_BUFF)
+        rects.arrange_in_grid(n_rows=2, buff=LARGE_BUFF)
         rects[2:].shift(MED_LARGE_BUFF * DOWN)
         titles = VGroup(*list(map(TextMobject, [
             "Divergence", "Curl",
@@ -3822,7 +3825,7 @@ class ShowCrossProduct(ShowDotProduct):
             fill_opacity=0.2,
         )
 
-        self.add(ContinualUpdate(
+        self.add(Mobject.add_updater(
             square,
             lambda s: s.set_points_as_corners([
                 ORIGIN,
@@ -3898,7 +3901,7 @@ class DivergenceTinyNudgesView(MovingCameraScene):
         )
         self.add_foreground_mobjects(input_dot)
         self.play(
-            FadeInAndShiftFromDirection(input_dot, SMALL_BUFF * DL),
+            FadeInFrom(input_dot, SMALL_BUFF * DL),
             Write(input_words),
         )
         self.play(
@@ -4032,7 +4035,7 @@ class DivergenceTinyNudgesView(MovingCameraScene):
                 moving_step_vector.get_end(),
                 moving_step_vector.get_end() + diff,
             )
-        self.moving_diff_vector_update = ContinualUpdate(
+        self.moving_diff_vector_update = Mobject.add_updater(
             moving_diff_vector,
             update_moving_diff_vector
         )
@@ -4051,7 +4054,7 @@ class DivergenceTinyNudgesView(MovingCameraScene):
             arg_separator="",
         ).scale(sf)
         group = VGroup(div_text, dot_product)
-        group.arrange_submobjects(RIGHT, buff=sf * MED_SMALL_BUFF)
+        group.arrange(RIGHT, buff=sf * MED_SMALL_BUFF)
         group.next_to(
             self.camera_frame.get_top(), DOWN,
             buff=sf * MED_SMALL_BUFF
@@ -4087,7 +4090,7 @@ class DivergenceTinyNudgesView(MovingCameraScene):
 
         self.play(
             Write(dot_product),
-            LaggedStart(MoveToTarget, copies)
+            OldLaggedStart(MoveToTarget, copies)
         )
         self.remove(copies)
         self.play(FadeIn(div_text))
@@ -4130,7 +4133,7 @@ class DivergenceTinyNudgesView(MovingCameraScene):
                     radians=angle,
                     about_point=point,
                     run_time=15.0 / n_samples,
-                    rate_func=None,
+                    rate_func=linear,
                 )
             )
             step_vector_copy = moving_step_vector.copy()
@@ -4163,7 +4166,7 @@ class DivergenceTinyNudgesView(MovingCameraScene):
                 )
             self.play(
                 all_step_vectors.set_fill, {"opacity": 0.5},
-                LaggedStart(
+                OldLaggedStart(
                     MoveToTarget, all_diff_vectors,
                     run_time=3
                 ),
@@ -4193,7 +4196,7 @@ class DivergenceTinyNudgesView(MovingCameraScene):
         cross_product.add_background_rectangle(opacity=1)
 
         group = VGroup(curl_text, cross_product)
-        group.arrange_submobjects(RIGHT, buff=sf * MED_SMALL_BUFF)
+        group.arrange(RIGHT, buff=sf * MED_SMALL_BUFF)
         group.next_to(self.camera_frame.get_top(), sf * DOWN)
 
         self.play(
@@ -4201,13 +4204,13 @@ class DivergenceTinyNudgesView(MovingCameraScene):
             dot_product.fade, 1,
             remover=True
         )
-        self.play(FadeInAndShiftFromDirection(cross_product, sf * DOWN))
+        self.play(FadeInFrom(cross_product, sf * DOWN))
         self.play(
             div_text.shift, sf * DOWN,
             div_text.fade, 1,
             remover=True
         )
-        self.play(FadeInAndShiftFromDirection(curl_text, sf * DOWN))
+        self.play(FadeInFrom(curl_text, sf * DOWN))
         self.wait()
 
     def rotate_difference_vectors(self):
@@ -4226,7 +4229,7 @@ class DivergenceTinyNudgesView(MovingCameraScene):
                     )
                 )
             self.play(
-                LaggedStart(
+                OldLaggedStart(
                     MoveToTarget, all_diff_vectors,
                     run_time=2
                 ),
@@ -4269,7 +4272,7 @@ class DivergenceTinyNudgesView(MovingCameraScene):
             virtual_time=1,
         )
         random.shuffle(stream_lines.submobjects)
-        self.play(LaggedStart(
+        self.play(OldLaggedStart(
             ShowPassingFlash,
             stream_lines,
             run_time=4,
@@ -4297,7 +4300,7 @@ class ZToHalfFlowNearWall(ComplexTransformationScene, MovingCameraScene):
             secondary_line_ratio=0,
         )
         plane.next_to(ORIGIN, UP, buff=0.001)
-        horizontal_lines = VGroup(*[l for l in list(plane.main_lines) + [plane.axes[0]] if np.abs(l.get_center()[0]) < 0.1])
+        horizontal_lines = VGroup(*[l for l in list(planes) + [plane.axes[0]] if np.abs(l.get_center()[0]) < 0.1])
         plane.set_stroke(MAROON_B, width=2)
         horizontal_lines.set_stroke(BLUE, width=2)
 
@@ -4363,7 +4366,7 @@ class IncmpressibleAndIrrotational(Scene):
         for op, word in (div_0, incompressible), (curl_0, irrotational):
             op.generate_target()
             group = VGroup(op.target, word)
-            group.arrange_submobjects(RIGHT, buff=MED_LARGE_BUFF)
+            group.arrange(RIGHT, buff=MED_LARGE_BUFF)
             group.move_to(op)
 
         self.play(FadeInFromDown(div_0))
@@ -4457,7 +4460,7 @@ class BroughtToYouBy(PiCreatureScene):
 
         self.play(
             Write(so_words[0]),
-            LaggedStart(
+            OldLaggedStart(
                 DrawBorderThenFill, so_words[1],
                 run_time=5
             ),
@@ -4479,7 +4482,7 @@ class BroughtToYouBy(PiCreatureScene):
             full_group,
             rate_func=running_start,
         ))
-        self.play(LaggedStart(
+        self.play(OldLaggedStart(
             DrawBorderThenFill, patreon_logo
         ))
         self.wait()
@@ -4493,7 +4496,7 @@ class BroughtToYouBy(PiCreatureScene):
         math.move_to(self.pi_creatures)
 
         spiral = Line(0.5 * RIGHT, 0.5 * RIGHT + 70 * UP)
-        spiral.insert_n_anchor_points(1000)
+        spiral.insert_n_curves(1000)
         from old_projects.zeta import zeta
         spiral.apply_complex_function(zeta)
         step = 0.1
@@ -4516,13 +4519,13 @@ class BroughtToYouBy(PiCreatureScene):
         )
         self.look_at(math)
         self.play(
-            ShowCreation(spiral, run_time=6, rate_func=None),
+            ShowCreation(spiral, run_time=6, rate_func=linear),
             math.scale, 0.5,
             math.shift, 3 * UP,
             randy.change, "thinking",
             morty.change, "thinking",
         )
-        self.play(LaggedStart(FadeOut, spiral, run_time=3))
+        self.play(OldLaggedStart(FadeOut, spiral, run_time=3))
         self.wait(3)
 
     # Helpers
@@ -4551,7 +4554,7 @@ class ThoughtsOnAds(Scene):
         line.move_to(DOWN)
 
         arrows = VGroup(Vector(2 * LEFT), Vector(2 * RIGHT))
-        arrows.arrange_submobjects(RIGHT, buff=2)
+        arrows.arrange(RIGHT, buff=2)
         arrows.next_to(line, DOWN)
 
         misaligned = TextMobject("Misaligned")
@@ -4577,7 +4580,6 @@ class ThoughtsOnAds(Scene):
         viewer.next_to(vcb[1:], UP, LARGE_BUFF)
         arrow_config = {
             "path_arc": 60 * DEGREES,
-            "use_rectangular_stem": False,
             "tip_length": 0.15,
         }
         vcb_arrows = VGroup(*[
@@ -4616,7 +4618,7 @@ class ThoughtsOnAds(Scene):
             ImageMobject("3b1b_logo", height=1),
             TextMobject("(hopefully)").scale(0.8)
         )
-        right_rect_label.arrange_submobjects(DOWN, buff=SMALL_BUFF)
+        right_rect_label.arrange(DOWN, buff=SMALL_BUFF)
         # TextMobject(
         #     "Where I hope \\\\ I've been"
         # )
@@ -4636,12 +4638,12 @@ class ThoughtsOnAds(Scene):
 
         self.play(
             FadeIn(left_text),
-            FadeInAndShiftFromDirection(knob, 2 * RIGHT)
+            FadeInFrom(knob, 2 * RIGHT)
         )
         self.wait()
         self.play(
-            LaggedStart(FadeInFromDown, vcb),
-            LaggedStart(ShowCreation, vcb_arrows),
+            OldLaggedStart(FadeInFromDown, vcb),
+            OldLaggedStart(ShowCreation, vcb_arrows),
             ApplyMethod(
                 knob.move_to, line.get_right(), DOWN,
                 run_time=2
@@ -4757,7 +4759,7 @@ class PeopleValueGraph(GraphScene):
         self.play(Write(reach_words))
         self.wait()
         self.play(
-            LaggedStart(DrawBorderThenFill, area),
+            OldLaggedStart(DrawBorderThenFill, area),
             Animation(self.graph),
             Animation(self.axes),
             Write(area_words),
