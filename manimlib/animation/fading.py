@@ -6,7 +6,7 @@ from manimlib.mobject.types.vectorized_mobject import VMobject
 from manimlib.utils.bezier import interpolate
 
 
-DEFAULT_FADE_LAG_RATIO = 0.05
+DEFAULT_FADE_LAG_RATIO = 0
 
 
 class FadeOut(Transform):
@@ -95,6 +95,18 @@ class FadeOutAndShiftDown(FadeOutAndShift):
     CONFIG = {
         "direction": DOWN,
     }
+
+
+class FadeInFromPoint(FadeIn):
+    def __init__(self, mobject, point, **kwargs):
+        self.point = point
+        super().__init__(mobject, **kwargs)
+
+    def create_starting_mobject(self):
+        start = super().create_starting_mobject()
+        start.scale(0)
+        start.move_to(self.point)
+        return start
 
 
 class FadeInFromLarge(FadeIn):

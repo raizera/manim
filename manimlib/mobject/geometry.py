@@ -138,6 +138,10 @@ class TipableVMobject(VMobject):
         else:
             return VMobject.get_start(self)
 
+    def get_length(self):
+       start, end = self.get_start_and_end()
+       return get_norm(start - end)
+
     def has_tip(self):
         return hasattr(self, "tip") and self.tip in self
 
@@ -317,7 +321,7 @@ class Ellipse(Circle):
     def __init__(self, **kwargs):
         Circle.__init__(self, **kwargs)
         self.set_width(self.width, stretch=True)
-        self.set_height(self.width, stretch=True)
+        self.set_height(self.height, stretch=True)
 
 
 class AnnularSector(Arc):
@@ -439,10 +443,6 @@ class Line(TipableVMobject):
                 return mob.get_boundary_point(direction)
         return np.array(mob_or_point)
 
-    def get_length(self):
-        start, end = self.get_start_and_end()
-        return get_norm(start - end)
-
     def get_vector(self):
         return self.get_end() - self.get_start()
 
@@ -542,7 +542,7 @@ class Arrow(Line):
         "stroke_width": 6,
         "buff": MED_SMALL_BUFF,
         "tip_width_to_length_ratio": 1,
-        "max_tip_length_to_length_ratio": 0.2,
+        "max_tip_length_to_length_ratio": 0.25,
         "max_stroke_width_to_length_ratio": 6,
         "preserve_tip_size_when_scaling": True,
         "rectangular_stem_width": 0.05,
@@ -560,15 +560,17 @@ class Arrow(Line):
         has_tip = self.has_tip()
         has_start_tip = self.has_start_tip()
         if has_tip or has_start_tip:
-            self.pop_tips()
+            old_tips = self.pop_tips()
 
         VMobject.scale(self, factor, **kwargs)
         self.set_stroke_width_from_length()
 
         if has_tip:
             self.add_tip()
+            self.tip.match_style(old_tips[0])
         if has_start_tip:
             self.add_tip(at_start=True)
+            self.start_tip.match_style(old_tips[1])
         return self
 
     def get_normal_vector(self):
@@ -588,10 +590,13 @@ class Arrow(Line):
 
     def set_stroke_width_from_length(self):
         max_ratio = self.max_stroke_width_to_length_ratio
-        self.set_stroke(width=min(
-            self.initial_stroke_width,
-            max_ratio * self.get_length(),
-        ))
+        self.set_stroke(
+            width=min(
+                self.initial_stroke_width,
+                max_ratio * self.get_length(),
+            ),
+            family=False,
+        )
         return self
 
     # TODO, should this be the default for everything?
