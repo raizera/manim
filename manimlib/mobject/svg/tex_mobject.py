@@ -66,6 +66,7 @@ class SingleStringTexMobject(SVGMobject):
             # Need to add blank subscript or superscript
             tex.endswith("_"),
             tex.endswith("^"),
+            tex.endswith("dot"),
         ])
         if should_add_filler:
             filler = "{\\quad}"
@@ -156,7 +157,8 @@ class TexMobject(SingleStringTexMobject):
         split_list = split_string_list_to_isolate_substrings(
             tex_strings, *substrings_to_isolate
         )
-        split_list = list(map(str.strip, split_list))
+        split_list = [str(x).strip() for x in split_list]
+        #split_list = list(map(str.strip, split_list))
         split_list = [s for s in split_list if s != '']
         return split_list
 

@@ -41,7 +41,12 @@ class Pendulum(VGroup):
             "color": RED,
         },
         "theta_label_height": 0.25,
+        "set_theta_label_height_cap": False,
         "n_steps_per_frame": 100,
+        "include_theta_label": True,
+        "include_velocity_vector": False,
+        "velocity_vector_multiple": 0.5,
+        "max_velocity_vector_length_to_length_ratio": 0.5,
     }
 
     def __init__(self, **kwargs):
@@ -52,7 +57,10 @@ class Pendulum(VGroup):
         self.rotating_group = VGroup(self.rod, self.weight)
         self.create_dashed_line()
         self.create_angle_arc()
-        self.add_theta_label()
+        if self.include_theta_label:
+            self.add_theta_label()
+        if self.include_velocity_vector:
+            self.add_velocity_vector()
 
         self.set_theta(self.initial_theta)
         self.update()
@@ -82,23 +90,36 @@ class Pendulum(VGroup):
             self.get_fixed_point() + self.length * DOWN,
             **self.dashed_line_config
         )
+        line.add_updater(
+            lambda l: l.move_to(self.get_fixed_point(), UP)
+        )
         self.add_to_back(line)
 
     def create_angle_arc(self):
         self.angle_arc = always_redraw(lambda: Arc(
             arc_center=self.get_fixed_point(),
             start_angle=-90 * DEGREES,
-            angle=self.get_theta(),
+            angle=self.get_arc_angle_theta(),
             **self.angle_arc_config,
         ))
         self.add(self.angle_arc)
+
+    def get_arc_angle_theta(self):
+        # Might be changed in certain scenes
+        return self.get_theta()
 
     def add_velocity_vector(self):
         def make_vector():
             omega = self.get_omega()
             theta = self.get_theta()
+            mvlr = self.max_velocity_vector_length_to_length_ratio
+            max_len = mvlr * self.rod.get_length()
+            vvm = self.velocity_vector_multiple
+            multiple = np.clip(
+                vvm * omega, -max_len, max_len
+            )
             vector = Vector(
-                0.5 * omega * RIGHT,
+                multiple * RIGHT,
                 **self.velocity_vector_config,
             )
             vector.rotate(theta, about_point=ORIGIN)
@@ -110,17 +131,23 @@ class Pendulum(VGroup):
         return self
 
     def add_theta_label(self):
-        label = self.theta_label = TexMobject("\\theta")
-        label.set_height(self.theta_label_height)
+        self.theta_label = always_redraw(self.get_label)
+        self.add(self.theta_label)
 
-        def update_label(l):
-            top = self.get_fixed_point()
-            arc_center = self.angle_arc.point_from_proportion(0.5)
-            vect = arc_center - top
-            vect = normalize(vect) * (1 + self.theta_label_height)
-            l.move_to(top + vect)
-        label.add_updater(update_label)
-        self.add(label)
+    def get_label(self):
+        label = TexMobject("\\theta")
+        label.set_height(self.theta_label_height)
+        if self.set_theta_label_height_cap:
+            max_height = self.angle_arc.get_width()
+            if label.get_height() > max_height:
+                label.set_height(max_height)
+        top = self.get_fixed_point()
+        arc_center = self.angle_arc.point_from_proportion(0.5)
+        vect = arc_center - top
+        norm = get_norm(vect)
+        vect = normalize(vect) * (norm + self.theta_label_height)
+        label.move_to(top + vect)
+        return label
 
     #
     def get_theta(self):
@@ -260,6 +287,9 @@ class ThetaVsTAxes(Axes):
         y_axis.label = theta_label
         y_axis.add(theta_label)
 
+        self.y_axis_label = theta_label
+        self.x_axis_label = t_label
+
         x_axis.add_numbers()
         y_axis.add(self.get_y_axis_coordinates(y_axis))
 
@@ -330,6 +360,7 @@ class IntroducePendulum(PiCreatureScene, MovingCameraScene):
             "length": 3,
             "top_point": 4 * RIGHT,
             "weight_diameter": 0.35,
+            "gravity": 20,
         },
         "theta_vs_t_axes_config": {
             "y_max": PI / 4,
@@ -339,6 +370,7 @@ class IntroducePendulum(PiCreatureScene, MovingCameraScene):
                 "unit_size": 2,
                 "tip_length": 0.3,
             },
+            "x_max": 12,
             "number_line_config": {
                 "stroke_width": 2,
             }
@@ -351,12 +383,13 @@ class IntroducePendulum(PiCreatureScene, MovingCameraScene):
 
     def construct(self):
         self.add_pendulum()
-        self.label_pi_creatures()
+        # self.label_pi_creatures()
         self.label_pendulum()
         self.add_graph()
+        self.label_function()
         self.show_graph_period()
         self.show_length_and_gravity()
-        self.tweak_length_and_gravity()
+        # self.tweak_length_and_gravity()
 
     def create_pi_creatures(self):
         randy = Randolph(color=BLUE_C)
@@ -410,7 +443,7 @@ class IntroducePendulum(PiCreatureScene, MovingCameraScene):
             GrowArrow(morty_label.arrow),
             morty.change, "raise_right_hand",
         )
-        self.wait()
+        self.wait(2)
 
     def label_pendulum(self):
         pendulum = self.pendulum
@@ -419,18 +452,18 @@ class IntroducePendulum(PiCreatureScene, MovingCameraScene):
         rect = SurroundingRectangle(label, buff=0.5 * SMALL_BUFF)
         rect.add_updater(lambda r: r.move_to(label))
 
-        self.add(rect)
+        for pi in randy, morty:
+            pi.add_updater(
+                lambda m: m.look_at(pendulum.weight)
+            )
+
+        self.play(randy.change, "pondering")
+        self.play(morty.change, "pondering")
+        self.wait(3)
+        randy.clear_updaters()
+        morty.clear_updaters()
         self.play(
             ShowCreationThenFadeOut(rect),
-            ShowCreationThenDestruction(
-                label.copy().set_style(
-                    fill_opacity=0,
-                    stroke_color=PINK,
-                    stroke_width=2,
-                )
-            ),
-            randy.change, "pondering",
-            morty.change, "pondering",
         )
         self.wait()
 
@@ -440,7 +473,10 @@ class IntroducePendulum(PiCreatureScene, MovingCameraScene):
         axes.to_corner(UL)
 
         self.play(
-            Restore(self.camera_frame),
+            Restore(
+                self.camera_frame,
+                rate_func=squish_rate_func(smooth, 0, 0.9),
+            ),
             DrawBorderThenFill(
                 axes,
                 rate_func=squish_rate_func(smooth, 0.5, 1),
@@ -454,10 +490,30 @@ class IntroducePendulum(PiCreatureScene, MovingCameraScene):
             ),
             run_time=3,
         )
-        self.wait(2)
-        self.graph = axes.get_live_drawn_graph(self.pendulum)
 
+        self.wait(1.5)
+        self.graph = axes.get_live_drawn_graph(self.pendulum)
         self.add(self.graph)
+
+    def label_function(self):
+        hm_word = TextMobject("Simple harmonic motion")
+        hm_word.scale(1.25)
+        hm_word.to_edge(UP)
+
+        formula = TexMobject(
+            "=\\theta_0 \\cos(\\sqrt{g / L} t)"
+        )
+        formula.next_to(
+            self.axes.y_axis_label, RIGHT, SMALL_BUFF
+        )
+        formula.set_stroke(width=0, background=True)
+
+        self.play(FadeInFrom(hm_word, DOWN))
+        self.wait()
+        self.play(
+            Write(formula),
+            hm_word.to_corner, UR
+        )
         self.wait(4)
 
     def show_graph_period(self):
@@ -476,13 +532,7 @@ class IntroducePendulum(PiCreatureScene, MovingCameraScene):
         line.shift(SMALL_BUFF * RIGHT)
         brace = Brace(line, UP, buff=SMALL_BUFF)
         brace.add_to_back(brace.copy().set_style(BLACK, 10))
-        formula = TexMobject(
-            "\\sqrt{\\,", "2\\pi", "L", "/", "g", "}",
-            tex_to_color_map={
-                "L": BLUE,
-                "g": YELLOW,
-            }
-        )
+        formula = get_period_formula()
         formula.next_to(brace, UP, SMALL_BUFF)
 
         self.period_formula = formula
@@ -510,29 +560,22 @@ class IntroducePendulum(PiCreatureScene, MovingCameraScene):
             self.pendulum,
             length_multiple=0.5 / 9.8,
         )
+        down_vectors = self.get_down_vectors()
+        down_vectors.set_color(YELLOW)
+        down_vectors.set_opacity(0.5)
 
-        self.play(ShowCreationThenDestructionAround(L))
-        dot = Dot(fill_opacity=0.25)
-        dot.move_to(L)
         self.play(
+            ShowCreationThenDestructionAround(L),
             ShowCreation(new_rod),
-            dot.move_to, new_rod,
-            dot.fade, 1,
         )
-        self.remove(dot)
         self.play(FadeOut(new_rod))
-        self.wait()
 
-        self.play(ShowCreationThenDestructionAround(g))
-        dot.move_to(g)
-        dot.set_fill(opacity=0.5)
         self.play(
+            ShowCreationThenDestructionAround(g),
             GrowArrow(g_vect),
-            dot.move_to, g_vect,
-            dot.fade, 1,
         )
-        self.remove(dot)
-        self.wait(2)
+        self.play(self.get_down_vectors_animation(down_vectors))
+        self.wait(6)
 
         self.gravity_vector = g_vect
 
@@ -566,15 +609,7 @@ class IntroducePendulum(PiCreatureScene, MovingCameraScene):
         # new_pendulum_config["initial_theta"] = pendulum.get_theta()
         new_pendulum = Pendulum(**new_pendulum_config)
 
-        down_vectors = VGroup(*[
-            Vector(0.5 * DOWN)
-            for x in range(10 * 150)
-        ])
-        down_vectors.arrange_in_grid(10, 150, buff=MED_SMALL_BUFF)
-        down_vectors.set_color_by_gradient(BLUE, RED)
-        # for vect in down_vectors:
-        #     vect.shift(0.1 * np.random.random(3))
-        down_vectors.to_edge(RIGHT)
+        down_vectors = self.get_down_vectors()
 
         self.play(randy.change, "happy")
         self.play(
@@ -597,16 +632,37 @@ class IntroducePendulum(PiCreatureScene, MovingCameraScene):
         g_vect.scale(2)
         self.play(
             FadeOut(graph2),
-            LaggedStart(*[
-                GrowArrow(v, rate_func=there_and_back)
-                for v in down_vectors
-            ], lag_ratio=0.0005, run_time=2, remover=True)
+            self.get_down_vectors_animation(down_vectors)
         )
         self.play(
             FadeIn(graph3),
             brace.stretch, 0.5, 0, {"about_edge": LEFT},
         )
         self.wait(6)
+
+    #
+    def get_down_vectors(self):
+        down_vectors = VGroup(*[
+            Vector(0.5 * DOWN)
+            for x in range(10 * 150)
+        ])
+        down_vectors.arrange_in_grid(10, 150, buff=MED_SMALL_BUFF)
+        down_vectors.set_color_by_gradient(BLUE, RED)
+        # for vect in down_vectors:
+        #     vect.shift(0.1 * np.random.random(3))
+        down_vectors.to_edge(RIGHT)
+        return down_vectors
+
+    def get_down_vectors_animation(self, down_vectors):
+        return LaggedStart(
+            *[
+                GrowArrow(v, rate_func=there_and_back)
+                for v in down_vectors
+            ],
+            lag_ratio=0.0005,
+            run_time=2,
+            remover=True
+        )
 
 
 class MultiplePendulumsOverlayed(Scene):
@@ -841,12 +897,102 @@ class VeryLowAnglePendulum(LowAnglePendulum):
     }
 
 
-class BuildUpEquation(MovingCameraScene):
+class WherePendulumLeads(PiCreatureScene):
+    def construct(self):
+        pendulum = Pendulum(
+            top_point=UP,
+            length=3,
+            gravity=20,
+        )
+        pendulum.start_swinging()
+
+        l_title = TextMobject("Linearization")
+        l_title.scale(1.5)
+        l_title.to_corner(UL)
+        c_title = TextMobject("Chaos")
+        c_title.scale(1.5)
+        c_title.move_to(l_title)
+        c_title.move_to(
+            c_title.get_center() * np.array([-1, 1, 1])
+        )
+
+        get_theta = pendulum.get_theta
+        spring = always_redraw(
+            lambda: ParametricFunction(
+                lambda t: np.array([
+                    np.cos(TAU * t) + (1.4 + get_theta()) * t,
+                    np.sin(TAU * t) - 0.5,
+                    0,
+                ]),
+                t_min=-0.5,
+                t_max=7,
+                color=GREY,
+                sheen_factor=1,
+                sheen_direction=UL,
+            ).scale(0.2).to_edge(LEFT, buff=0)
+        )
+        spring_rect = SurroundingRectangle(
+            spring, buff=MED_LARGE_BUFF,
+            stroke_width=0,
+            fill_color=BLACK,
+            fill_opacity=0,
+        )
+
+        weight = Dot(radius=0.25)
+        weight.add_updater(lambda m: m.move_to(
+            spring.points[-1]
+        ))
+        weight.set_color(BLUE)
+        weight.set_sheen(1, UL)
+        spring_system = VGroup(spring, weight)
+
+        linear_formula = TexMobject(
+            "\\frac{d \\vec{\\textbf{x}}}{dt}="
+            "A\\vec{\\textbf{x}}"
+        )
+        linear_formula.next_to(spring, UP, LARGE_BUFF)
+        linear_formula.match_x(l_title)
+
+        randy = self.pi_creature
+        randy.set_height(2)
+        randy.center()
+        randy.to_edge(DOWN)
+        randy.shift(3 * LEFT)
+        q_marks = TexMobject("???")
+        q_marks.next_to(randy, UP)
+
+        self.add(pendulum, randy)
+        self.play(
+            randy.change, "pondering", pendulum,
+            FadeInFromDown(q_marks, lag_ratio=0.3)
+        )
+        self.play(randy.look_at, pendulum)
+        self.wait(5)
+        self.play(
+            Animation(VectorizedPoint(pendulum.get_top())),
+            FadeOutAndShift(q_marks, UP, lag_ratio=0.3),
+        )
+        self.add(spring_system)
+        self.play(
+            FadeOut(spring_rect),
+            FadeInFrom(linear_formula, UP),
+            FadeInFromDown(l_title),
+        )
+        self.play(FadeInFromDown(c_title))
+        self.wait(8)
+
+
+class LongDoublePendulum(ExternallyAnimatedScene):
+    pass
+
+
+class AnalyzePendulumForce(MovingCameraScene):
     CONFIG = {
         "pendulum_config": {
             "length": 5,
-            "top_point": 3 * UP,
-            "initial_theta": 45 * DEGREES,
+            "top_point": 3.5 * UP,
+            "initial_theta": 60 * DEGREES,
+            "set_theta_label_height_cap": True,
         },
         "g_vect_config": {
             "length_multiple": 0.25,
@@ -857,25 +1003,125 @@ class BuildUpEquation(MovingCameraScene):
 
     def construct(self):
         self.add_pendulum()
+        self.show_arc_length()
+        self.add_g_vect()
         self.show_constraint()
         self.break_g_vect_into_components()
         self.show_angle_geometry()
         self.show_gsin_formula()
-        self.show_acceleration_at_different_angles()
-        self.ask_about_what_to_do()
-        self.show_velocity_and_position()
-        self.show_derivatives()
-        self.show_equation()
-        self.talk_about_sine_component()
-        self.add_air_resistance()
+        self.show_sign()
+        self.show_acceleration_formula()
+        # self.ask_about_what_to_do()
+
+        # self.emphasize_theta()
+        # self.show_angular_velocity()
+        # self.show_angular_acceleration()
+        # self.circle_g_sin_formula()
 
     def add_pendulum(self):
-        self.pendulum = Pendulum(**self.pendulum_config)
-        self.add(self.pendulum)
+        pendulum = Pendulum(**self.pendulum_config)
+        theta_tracker = ValueTracker(pendulum.get_theta())
+        pendulum.add_updater(lambda p: p.set_theta(
+            theta_tracker.get_value()
+        ))
 
-    def show_constraint(self):
+        self.add(pendulum)
+        self.pendulum = pendulum
+        self.theta_tracker = theta_tracker
+
+    def show_arc_length(self):
         pendulum = self.pendulum
-        weight = pendulum.weight
+        angle = pendulum.get_theta()
+        height = pendulum.length
+        top = pendulum.get_fixed_point()
+
+        line = Line(UP, DOWN)
+        line.set_height(height)
+        line.move_to(top, UP)
+        arc = always_redraw(lambda: Arc(
+            start_angle=-90 * DEGREES,
+            angle=pendulum.get_theta(),
+            arc_center=pendulum.get_fixed_point(),
+            radius=pendulum.length,
+            stroke_color=GREEN,
+        ))
+
+        brace = Brace(Line(ORIGIN, 5 * UP), RIGHT)
+        brace.point = VectorizedPoint(brace.get_right())
+        brace.add(brace.point)
+        brace.set_height(angle)
+        brace.move_to(ORIGIN, DL)
+        brace.apply_complex_function(np.exp)
+        brace.scale(height)
+        brace.rotate(-90 * DEGREES)
+        brace.move_to(arc)
+        brace.shift(MED_SMALL_BUFF * normalize(
+            arc.point_from_proportion(0.5) - top
+        ))
+        x_sym = TexMobject("x")
+        x_sym.set_color(GREEN)
+        x_sym.next_to(brace.point, DR, buff=SMALL_BUFF)
+
+        rhs = TexMobject("=", "L", "\\theta")
+        rhs.set_color_by_tex("\\theta", BLUE)
+        rhs.next_to(x_sym, RIGHT)
+        rhs.shift(0.7 * SMALL_BUFF * UP)
+        line_L = TexMobject("L")
+        line_L.next_to(
+            pendulum.rod.get_center(), UR, SMALL_BUFF,
+        )
+
+        self.play(
+            ShowCreation(arc),
+            Rotate(line, angle, about_point=top),
+            UpdateFromAlphaFunc(
+                line, lambda m, a: m.set_stroke(
+                    width=2 * there_and_back(a)
+                )
+            ),
+            GrowFromPoint(
+                brace, line.get_bottom(),
+                path_arc=angle
+            ),
+        )
+        self.play(FadeInFrom(x_sym, UP))
+        self.wait()
+
+        # Show equation
+        line.set_stroke(BLUE, 5)
+        self.play(
+            ShowCreationThenFadeOut(line),
+            FadeInFromDown(line_L)
+        )
+        self.play(
+            TransformFromCopy(
+                line_L, rhs.get_part_by_tex("L")
+            ),
+            Write(rhs.get_part_by_tex("="))
+        )
+        self.play(
+            TransformFromCopy(
+                pendulum.theta_label,
+                rhs.get_parts_by_tex("\\theta"),
+            )
+        )
+        self.add(rhs)
+
+        x_eq = VGroup(x_sym, rhs)
+
+        self.play(
+            FadeOut(brace),
+            x_eq.rotate, angle / 2,
+            x_eq.next_to, arc.point_from_proportion(0.5),
+            UL, {"buff": -MED_SMALL_BUFF}
+        )
+
+        self.x_eq = x_eq
+        self.arc = arc
+        self.line_L = line_L
+
+    def add_g_vect(self):
+        pendulum = self.pendulum
 
         g_vect = self.g_vect = GravityVector(
             pendulum, **self.g_vect_config,
@@ -887,24 +1133,15 @@ class BuildUpEquation(MovingCameraScene):
             g_vect, RIGHT, buff=-SMALL_BUFF,
         ))
 
-        theta_tracker = ValueTracker(pendulum.get_theta())
-
-        p = weight.get_center()
-        path = CubicBezier([p, p + 3 * DOWN, p + 3 * UP, p])
-
-        g_word.suspend_updating()
         self.play(
             GrowArrow(g_vect),
             FadeInFrom(g_word, UP, lag_ratio=0.1),
         )
-        g_word.resume_updating()
-
-        self.play(MoveAlongPath(weight, path, run_time=2))
         self.wait()
 
-        pendulum.add_updater(lambda p: p.set_theta(
-            theta_tracker.get_value()
-        ))
+    def show_constraint(self):
+        pendulum = self.pendulum
+
         arcs = VGroup()
         for u in [-1, 2, -1]:
             d_theta = 40 * DEGREES * u
@@ -914,17 +1151,15 @@ class BuildUpEquation(MovingCameraScene):
                 radius=pendulum.length,
                 arc_center=pendulum.get_fixed_point(),
                 stroke_width=2,
-                stroke_color=RED,
+                stroke_color=YELLOW,
                 stroke_opacity=0.5,
             )
             self.play(
-                theta_tracker.increment_value, d_theta,
+                self.theta_tracker.increment_value, d_theta,
                 ShowCreation(arc)
             )
             arcs.add(arc)
-        pendulum.clear_updaters()
-        self.wait()
-        self.play(FadeOut(arc))
+        self.play(FadeOut(arcs))
 
     def break_g_vect_into_components(self):
         g_vect = self.g_vect
@@ -945,9 +1180,7 @@ class BuildUpEquation(MovingCameraScene):
             color=self.perp_line_color,
         ))
 
-        self.play(
-            ShowCreation(g_vect.component_lines),
-        )
+        self.play(ShowCreation(g_vect.component_lines))
         self.play(GrowArrow(g_vect.tangent))
         self.wait()
         self.play(GrowArrow(g_vect.perp))
@@ -956,29 +1189,703 @@ class BuildUpEquation(MovingCameraScene):
     def show_angle_geometry(self):
         g_vect = self.g_vect
 
+        arc = Arc(
+            start_angle=90 * DEGREES,
+            angle=self.pendulum.get_theta(),
+            radius=0.5,
+            arc_center=g_vect.get_end(),
+        )
+        q_mark = TexMobject("?")
+        q_mark.next_to(arc.get_center(), UL, SMALL_BUFF)
+        theta_label = TexMobject("\\theta")
+        theta_label.move_to(q_mark)
+
+        self.add(g_vect)
+        self.play(
+            ShowCreation(arc),
+            Write(q_mark)
+        )
+        self.play(ShowCreationThenFadeAround(q_mark))
+        self.wait()
+        self.play(ShowCreationThenFadeAround(
+            self.pendulum.theta_label
+        ))
+        self.play(
+            TransformFromCopy(
+                self.pendulum.theta_label,
+                theta_label,
+            ),
+            FadeOut(q_mark)
+        )
+        self.wait()
+        self.play(WiggleOutThenIn(g_vect.tangent))
+        self.play(WiggleOutThenIn(
+            Line(
+                *g_vect.get_start_and_end(),
+                buff=0,
+            ).add_tip().match_style(g_vect),
+            remover=True
+        ))
+        self.wait()
+        self.play(
+            FadeOut(arc),
+            FadeOut(theta_label),
+        )
+
     def show_gsin_formula(self):
-        pass
+        g_vect = self.g_vect
+        g_word = self.g_word
+        g_word.clear_updaters()
+
+        g_term = self.g_term = TexMobject("-g")
+        g_term.add_updater(lambda m: m.next_to(
+            g_vect,
+            RIGHT if self.pendulum.get_theta() >= 0 else LEFT,
+            SMALL_BUFF
+        ))
+
+        def create_vect_label(vect, tex, direction):
+            label = TexMobject(tex)
+            label.set_stroke(width=0, background=True)
+            label.add_background_rectangle()
+            label.scale(0.7)
+            max_width = 0.9 * vect.get_length()
+            if label.get_width() > max_width:
+                label.set_width(max_width)
+            angle = vect.get_angle()
+            angle = (angle + PI / 2) % PI - PI / 2
+            label.next_to(ORIGIN, direction, SMALL_BUFF)
+            label.rotate(angle, about_point=ORIGIN)
+            label.shift(vect.get_center())
+            return label
+
+        g_sin_label = always_redraw(lambda: create_vect_label(
+            g_vect.tangent, "-g\\sin(\\theta)", UP,
+        ))
+        g_cos_label = always_redraw(lambda: create_vect_label(
+            g_vect.perp, "-g\\cos(\\theta)", DOWN,
+        ))
+
+        self.play(
+            ReplacementTransform(g_word[0][0], g_term[0][1]),
+            FadeOut(g_word[0][1:]),
+            Write(g_term[0][0]),
+        )
+        self.add(g_term)
+        self.wait()
+        for label in g_sin_label, g_cos_label:
+            self.play(
+                GrowFromPoint(label[0], g_term.get_center()),
+                TransformFromCopy(g_term, label[1][:2]),
+                GrowFromPoint(label[1][2:], g_term.get_center()),
+                remover=True
+            )
+            self.add(label)
+            self.wait()
+
+        self.g_sin_label = g_sin_label
+        self.g_cos_label = g_cos_label
+
+    def show_sign(self):
+        get_theta = self.pendulum.get_theta
+        theta_decimal = DecimalNumber(include_sign=True)
+        theta_decimal.add_updater(lambda d: d.set_value(
+            get_theta()
+        ))
+        theta_decimal.add_updater(lambda m: m.next_to(
+            self.pendulum.theta_label, DOWN
+        ))
+        theta_decimal.add_updater(lambda m: m.set_color(
+            GREEN if get_theta() > 0 else RED
+        ))
+
+        self.play(
+            FadeInFrom(theta_decimal, UP),
+            FadeOut(self.x_eq),
+            FadeOut(self.line_L),
+        )
+        self.set_theta(-60 * DEGREES, run_time=4)
+        self.set_theta(60 * DEGREES, run_time=4)
+        self.play(
+            FadeOut(theta_decimal),
+            FadeIn(self.x_eq),
+        )
+
+    def show_acceleration_formula(self):
+        x_eq = self.x_eq
+        g_sin_theta = self.g_sin_label
+
+        equation = TexMobject(
+            "a", "=",
+            "\\ddot", "x",
+            "=",
+            "-", "g", "\\sin\\big(", "\\theta", "\\big)",
+        )
+        equation.to_edge(LEFT)
+
+        second_deriv = equation[2:4]
+        x_part = equation.get_part_by_tex("x")
+        x_part.set_color(GREEN)
+        a_eq = equation[:2]
+        eq2 = equation.get_parts_by_tex("=")[1]
+        rhs = equation[5:]
+
+        second_deriv_L_form = TexMobject(
+            "L", "\\ddot", "\\theta"
+        )
+        second_deriv_L_form.move_to(second_deriv, DOWN)
+        eq3 = TexMobject("=")
+        eq3.rotate(90 * DEGREES)
+        eq3.next_to(second_deriv_L_form, UP)
+
+        g_L_frac = TexMobject(
+            "-", "{g", "\\over", "L}"
+        )
+        g_L_frac.move_to(rhs[:2], LEFT)
+        g_L_frac.shift(SMALL_BUFF * UP / 2)
+
+        mu_term = TexMobject(
+            "-\\mu", "\\dot", "\\theta",
+        )
+        mu_term.next_to(g_L_frac, LEFT)
+        mu_term.shift(SMALL_BUFF * UP / 2)
+
+        mu_brace = Brace(mu_term, UP)
+        mu_word = mu_brace.get_text("Air resistance")
+
+        for mob in equation, second_deriv_L_form, mu_term:
+            mob.set_color_by_tex("\\theta", BLUE)
+
+        self.play(
+            TransformFromCopy(x_eq[0], x_part),
+            Write(equation[:3]),
+        )
+        self.wait()
+        self.play(
+            Write(eq2),
+            TransformFromCopy(g_sin_theta, rhs)
+        )
+        self.wait()
+        #
+        self.show_acceleration_at_different_angles()
+        #
+        self.play(
+            FadeInFromDown(second_deriv_L_form),
+            Write(eq3),
+            second_deriv.next_to, eq3, UP,
+            a_eq.shift, SMALL_BUFF * LEFT,
+            eq2.shift, SMALL_BUFF * RIGHT,
+            rhs.shift, SMALL_BUFF * RIGHT,
+        )
+        self.wait()
+        self.wait()
+        self.play(
+            FadeOut(a_eq),
+            FadeOut(second_deriv),
+            FadeOut(eq3),
+            ReplacementTransform(
+                second_deriv_L_form.get_part_by_tex("L"),
+                g_L_frac.get_part_by_tex("L"),
+            ),
+            ReplacementTransform(
+                equation.get_part_by_tex("-"),
+                g_L_frac.get_part_by_tex("-"),
+            ),
+            ReplacementTransform(
+                equation.get_part_by_tex("g"),
+                g_L_frac.get_part_by_tex("g"),
+            ),
+            Write(g_L_frac.get_part_by_tex("\\over")),
+            rhs[2:].next_to, g_L_frac, RIGHT, {"buff": SMALL_BUFF},
+        )
+        self.wait()
+        self.play(
+            GrowFromCenter(mu_term),
+            VGroup(eq2, second_deriv_L_form[1:]).next_to,
+            mu_term, LEFT,
+        )
+        self.play(
+            GrowFromCenter(mu_brace),
+            FadeInFromDown(mu_word),
+        )
 
     def show_acceleration_at_different_angles(self):
-        pass
+        to_fade = VGroup(
+            self.g_cos_label,
+            self.g_vect.perp,
+        )
+        new_comp_line_sytle = {
+            "stroke_width": 0.5,
+            "stroke_opacity": 0.25,
+        }
+
+        self.play(
+            FadeOut(self.x_eq),
+            to_fade.set_opacity, 0.25,
+            self.g_vect.component_lines.set_style,
+            new_comp_line_sytle
+        )
+        self.g_vect.component_lines.add_updater(
+            lambda m: m.set_style(**new_comp_line_sytle)
+        )
+        for mob in to_fade:
+            mob.add_updater(lambda m: m.set_opacity(0.25))
+
+        self.set_theta(0)
+        self.wait(2)
+        self.set_theta(89.9 * DEGREES, run_time=3)
+        self.wait(2)
+        self.set_theta(
+            60 * DEGREES,
+            FadeIn(self.x_eq),
+            run_time=2,
+        )
+        self.wait()
 
     def ask_about_what_to_do(self):
+        g_vect = self.g_vect
+        g_sin_label = self.g_sin_label
+        angle = g_vect.tangent.get_angle()
+        angle = (angle - PI) % TAU
+
+        randy = You()
+        randy.to_corner(DL)
+        bubble = randy.get_bubble(
+            height=2,
+            width=3.5,
+        )
+        g_sin_copy = g_sin_label.copy()
+        g_sin_copy.remove(g_sin_copy[0])
+        g_sin_copy.generate_target()
+        g_sin_copy.target.scale(1 / 0.75)
+        g_sin_copy.target.rotate(-angle)
+        a_eq = TexMobject("a=")
+        thought_term = VGroup(a_eq, g_sin_copy.target)
+        thought_term.arrange(RIGHT, buff=SMALL_BUFF)
+        thought_term.move_to(bubble.get_bubble_center())
+
+        rect = SurroundingRectangle(g_sin_copy.target)
+        rect.rotate(angle)
+        rect.move_to(g_sin_label)
+
+        randy.save_state()
+        randy.fade(1)
+        self.play(randy.restore, randy.change, "pondering")
+        self.play(ShowCreationThenFadeOut(rect))
+        self.play(
+            ShowCreation(bubble),
+            Write(a_eq),
+            MoveToTarget(g_sin_copy),
+            randy.look_at, bubble,
+        )
+        thought_term.remove(g_sin_copy.target)
+        thought_term.add(g_sin_copy)
+        self.play(Blink(randy))
+        self.wait()
+        self.play(
+            ShowCreationThenDestruction(
+                thought_term.copy().set_style(
+                    stroke_color=YELLOW,
+                    stroke_width=2,
+                    fill_opacity=0,
+                ),
+                run_time=2,
+                lag_ratio=0.2,
+            ),
+            randy.change, "confused", thought_term,
+        )
+        self.play(Blink(randy))
+        self.play(
+            FadeOut(randy),
+            FadeOut(bubble),
+            thought_term.next_to, self.pendulum, DOWN, LARGE_BUFF
+        )
+
+        self.accleration_equation = thought_term
+
+    def emphasize_theta(self):
+        pendulum = self.pendulum
+
+        self.play(FocusOn(pendulum.theta_label))
+        self.play(Indicate(pendulum.theta_label))
+
+        pendulum_copy = pendulum.deepcopy()
+        pendulum_copy.clear_updaters()
+        pendulum_copy.fade(1)
+        pendulum_copy.start_swinging()
+
+        def new_updater(p):
+            p.set_theta(pendulum_copy.get_theta())
+        pendulum.add_updater(new_updater)
+
+        self.add(pendulum_copy)
+        self.wait(5)
+        pendulum_copy.end_swinging()
+        self.remove(pendulum_copy)
+        pendulum.remove_updater(new_updater)
+        self.update_mobjects(0)
+
+    def show_angular_velocity(self):
         pass
 
-    def show_velocity_and_position(self):
+    def show_angular_acceleration(self):
         pass
+
+    def circle_g_sin_formula(self):
+        self.play(
+            ShowCreationThenFadeAround(
+                self.accleration_equation
+            )
+        )
+
+    #
+    def set_theta(self, value, *added_anims, **kwargs):
+        kwargs["run_time"] = kwargs.get("run_time", 2)
+        self.play(
+            self.theta_tracker.set_value, value,
+            *added_anims,
+            **kwargs,
+        )
+
+
+class BuildUpEquation(Scene):
+    CONFIG = {
+        "tex_config": {
+            "tex_to_color_map": {
+                "{a}": YELLOW,
+                "{v}": RED,
+                "{x}": GREEN,
+                "\\theta": BLUE,
+                "{L}": WHITE,
+            }
+        }
+    }
+
+    def construct(self):
+        # self.add_center_line()
+        self.show_derivatives()
+        self.show_theta_double_dot_equation()
+        self.talk_about_sine_component()
+        self.add_air_resistance()
+
+    def add_center_line(self):
+        line = Line(UP, DOWN)
+        line.set_height(FRAME_HEIGHT)
+        line.set_stroke(WHITE, 1)
+        self.add(line)
 
     def show_derivatives(self):
-        pass
+        a_eq = TexMobject(
+            "{a}", "=", "{d{v} \\over dt}",
+            **self.tex_config,
+        )
+        v_eq = TexMobject(
+            "{v}", "=", "{d{x} \\over dt}",
+            **self.tex_config,
+        )
+        x_eq = TexMobject(
+            "{x} = {L} \\theta",
+            **self.tex_config,
+        )
+        eqs = VGroup(a_eq, v_eq, x_eq)
+        eqs.arrange(DOWN, buff=LARGE_BUFF)
+        eqs.to_corner(UL)
 
-    def show_equation(self):
-        pass
+        v_rhs = TexMobject(
+            "={L}{d\\theta \\over dt}",
+            "=", "{L}\\dot{\\theta}",
+            **self.tex_config,
+        )
+
+        v_rhs.next_to(v_eq, RIGHT, SMALL_BUFF)
+        v_rhs.shift(
+            UP * (v_eq[1].get_bottom()[1] - v_rhs[0].get_bottom()[1])
+        )
+        a_rhs = TexMobject(
+            "={L}{d", "\\dot{\\theta}", "\\over dt}",
+            "=", "{L}\\ddot{\\theta}",
+            **self.tex_config,
+        )
+        a_rhs.next_to(a_eq, RIGHT, SMALL_BUFF)
+        a_rhs.shift(
+            UP * (a_eq[1].get_bottom()[1] - a_rhs[0].get_bottom()[1])
+        )
+
+        # a_eq
+        self.play(Write(a_eq))
+        self.wait()
+
+        # v_eq
+        self.play(
+            TransformFromCopy(
+                a_eq.get_part_by_tex("{v}"),
+                v_eq.get_part_by_tex("{v}"),
+            )
+        )
+        self.play(TransformFromCopy(v_eq[:1], v_eq[1:]))
+        self.wait()
+
+        # x_eq
+        self.play(
+            TransformFromCopy(
+                v_eq.get_part_by_tex("{x}"),
+                x_eq.get_part_by_tex("{x}"),
+            )
+        )
+        self.play(Write(x_eq[1:]))
+        self.wait()
+        for tex in "L", "\\theta":
+            self.play(ShowCreationThenFadeAround(
+                x_eq.get_part_by_tex(tex)
+            ))
+        self.wait()
+
+        # v_rhs
+        self.play(*[
+            TransformFromCopy(
+                x_eq.get_part_by_tex(tex),
+                v_rhs.get_part_by_tex(tex),
+            )
+            for tex in ("=", "{L}", "\\theta")
+        ])
+        self.play(
+            TransformFromCopy(v_eq[-3], v_rhs[2]),
+            TransformFromCopy(v_eq[-1], v_rhs[4]),
+        )
+        self.wait()
+        self.play(
+            Write(v_rhs[-5]),
+            TransformFromCopy(*v_rhs.get_parts_by_tex("{L}")),
+            TransformFromCopy(v_rhs[3:4], v_rhs[-3:])
+        )
+        self.wait()
+        self.play(ShowCreationThenFadeAround(v_rhs[2:4]))
+        self.play(ShowCreationThenFadeAround(v_rhs[4]))
+        self.wait()
+
+        # a_rhs
+        self.play(*[
+            TransformFromCopy(
+                v_rhs.get_parts_by_tex(tex)[-1],
+                a_rhs.get_part_by_tex(tex),
+            )
+            for tex in ("=", "{L}", "\\theta", "\\dot")
+        ])
+        self.play(
+            TransformFromCopy(a_eq[-3], a_rhs[2]),
+            TransformFromCopy(a_eq[-1], a_rhs[6]),
+        )
+        self.wait()
+        self.play(
+            Write(a_rhs[-5]),
+            TransformFromCopy(*a_rhs.get_parts_by_tex("{L}")),
+            TransformFromCopy(a_rhs[3:4], a_rhs[-3:]),
+        )
+        self.wait()
+
+        self.equations = VGroup(
+            a_eq, v_eq, x_eq,
+            v_rhs, a_rhs,
+        )
+
+    def show_theta_double_dot_equation(self):
+        equations = self.equations
+        a_deriv = equations[0]
+        a_rhs = equations[-1][-5:].copy()
+
+        shift_vect = 1.5 * DOWN
+
+        equals = TexMobject("=")
+        equals.rotate(90 * DEGREES)
+        equals.next_to(a_deriv[0], UP, MED_LARGE_BUFF)
+        g_sin_eq = TexMobject(
+            "-", "g", "\\sin", "(", "\\theta", ")",
+            **self.tex_config,
+        )
+        g_sin_eq.next_to(
+            equals, UP,
+            buff=MED_LARGE_BUFF,
+            aligned_edge=LEFT,
+        )
+        g_sin_eq.to_edge(LEFT)
+        g_sin_eq.shift(shift_vect)
+
+        shift_vect += (
+            g_sin_eq[1].get_center() -
+            a_deriv[0].get_center()
+        )[0] * RIGHT
+
+        equals.shift(shift_vect)
+        a_rhs.shift(shift_vect)
+
+        self.play(
+            equations.shift, shift_vect,
+            Write(equals),
+            GrowFromPoint(
+                g_sin_eq, 2 * RIGHT + 3 * DOWN
+            )
+        )
+        self.wait()
+        self.play(
+            a_rhs.next_to, g_sin_eq, RIGHT,
+            a_rhs.shift, SMALL_BUFF * UP,
+        )
+        self.wait()
+
+        # Fade equations
+        self.play(
+            FadeOut(equals),
+            equations.shift, DOWN,
+            equations.fade, 0.5,
+        )
+
+        # Rotate sides
+        equals, L, ddot, theta, junk = a_rhs
+        L_dd_theta = VGroup(L, ddot, theta)
+        minus, g, sin, lp, theta2, rp = g_sin_eq
+        m2, g2, over, L2 = frac = TexMobject("-", "{g", "\\over", "L}")
+        frac.next_to(equals, RIGHT)
+
+        self.play(
+            L_dd_theta.next_to, equals, LEFT,
+            L_dd_theta.shift, SMALL_BUFF * UP,
+            g_sin_eq.next_to, equals, RIGHT,
+            path_arc=PI / 2,
+        )
+        self.play(
+            ReplacementTransform(g, g2),
+            ReplacementTransform(minus, m2),
+            ReplacementTransform(L, L2),
+            Write(over),
+            g_sin_eq[2:].next_to, over, RIGHT, SMALL_BUFF,
+        )
+        self.wait()
+
+        # Surround
+        rect = SurroundingRectangle(VGroup(g_sin_eq, frac, ddot))
+        rect.stretch(1.1, 0)
+        dashed_rect = DashedVMobject(
+            rect, num_dashes=50, positive_space_ratio=1,
+        )
+        dashed_rect.shuffle()
+        dashed_rect.save_state()
+        dashed_rect.space_out_submobjects(1.1)
+        for piece in dashed_rect:
+            piece.rotate(90 * DEGREES)
+        dashed_rect.fade(1)
+        self.play(Restore(dashed_rect, lag_ratio=0.05))
+        dashed_rect.generate_target()
+        dashed_rect.target.space_out_submobjects(0.9)
+        dashed_rect.target.fade(1)
+        for piece in dashed_rect.target:
+            piece.rotate(90 * DEGREES)
+        self.play(MoveToTarget(
+            dashed_rect,
+            lag_ratio=0.05,
+            remover=True
+        ))
+        self.wait()
+
+        self.main_equation = VGroup(
+            ddot, theta, equals,
+            m2, L2, over, g2,
+            sin, lp, theta2, rp,
+        )
 
     def talk_about_sine_component(self):
-        pass
+        main_equation = self.main_equation
+        gL_part = main_equation[4:7]
+        sin_part = main_equation[7:]
+        sin = sin_part[0]
+
+        morty = Mortimer(height=1.5)
+        morty.next_to(sin, DR, buff=LARGE_BUFF)
+        morty.add_updater(lambda m: m.look_at(sin))
+
+        self.play(ShowCreationThenFadeAround(gL_part))
+        self.wait()
+        self.play(ShowCreationThenFadeAround(sin_part))
+        self.wait()
+
+        self.play(FadeIn(morty))
+        sin.save_state()
+        self.play(
+            morty.change, "angry",
+            sin.next_to, morty, LEFT, {"aligned_edge": UP},
+        )
+        self.play(Blink(morty))
+        morty.clear_updaters()
+        self.play(
+            morty.change, "concerned_musician",
+            morty.look, DR,
+        )
+        self.play(Restore(sin))
+        self.play(FadeOut(morty))
+        self.wait()
+
+        # Emphasize theta as input
+        theta = sin_part[2]
+        arrow = Vector(0.5 * UP, color=WHITE)
+        arrow.next_to(theta, DOWN, SMALL_BUFF)
+        word = TextMobject("Input")
+        word.next_to(arrow, DOWN)
+
+        self.play(
+            FadeInFrom(word, UP),
+            GrowArrow(arrow)
+        )
+        self.play(
+            ShowCreationThenDestruction(
+                theta.copy().set_style(
+                    fill_opacity=0,
+                    stroke_width=2,
+                    stroke_color=YELLOW,
+                ),
+                lag_ratio=0.1,
+            )
+        )
+        self.play(FadeOut(arrow), FadeOut(word))
 
     def add_air_resistance(self):
-        pass
+        main_equation = self.main_equation
+        tdd_eq = main_equation[:3]
+        rhs = main_equation[3:]
+
+        new_term = TexMobject(
+            "-", "\\mu", "\\dot{", "\\theta}",
+        )
+        new_term.set_color_by_tex("\\theta", BLUE)
+        new_term.move_to(main_equation)
+        new_term.shift(0.5 * SMALL_BUFF * UP)
+        new_term[0].align_to(rhs[0], UP)
+
+        brace = Brace(new_term, DOWN)
+        words = brace.get_text("Air resistance")
+
+        self.play(
+            FadeInFromDown(new_term),
+            tdd_eq.next_to, new_term, LEFT,
+            tdd_eq.align_to, tdd_eq, UP,
+            rhs.next_to, new_term, RIGHT,
+            rhs.align_to, rhs, UP,
+        )
+        self.play(
+            GrowFromCenter(brace),
+            Write(words)
+        )
+        self.wait()
+
+
+class SimpleDampenedPendulum(Scene):
+    def construct(self):
+        pendulum = Pendulum(
+            top_point=ORIGIN,
+            initial_theta=150 * DEGREES,
+            mu=0.5,
+        )
+        self.add(pendulum)
+        pendulum.start_swinging()
+        self.wait(20)
 
 
 class NewSceneName(Scene):

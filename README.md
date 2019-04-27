@@ -2,7 +2,7 @@
 [![Documentation Status](https://readthedocs.org/projects/manim/badge/?version=latest)](https://manim.readthedocs.io/en/latest/?badge=latest)
 [![MIT License](https://img.shields.io/badge/license-MIT-blue.svg?style=flat)](http://choosealicense.com/licenses/mit/)
 
-Manim is an animation engine for explanatory math videos. It's used to create precise animations programmatically.
+Manim is an animation engine for explanatory math videos. It's used to create precise animations programmatically, as seen in the videos at [3Blue1Brown](https://www.3blue1brown.com/).
 
 ## Installation
 Manim runs on python 3.7. You can install the python requirements with
@@ -18,6 +18,24 @@ python3 -m pip install -r requirements.txt
 python3 -m manim example_scenes.py SquareToCircle -pl
 ```
 
+### Directly (Windows)
+1. [Install FFmpeg](https://www.wikihow.com/Install-FFmpeg-on-Windows).
+2. Install Cairo. Download the wheel from https://www.lfd.uci.edu/~gohlke/pythonlibs/#pycairo. For most users, ``pycairo‑1.18.0‑cp37‑cp37m‑win32.whl`` will do fine.
+    ```sh
+    pip3 install C:\path\to\wheel\pycairo‑1.18.0‑cp37‑cp37m‑win32.whl
+    ```
+3. Install a LaTeX distribution. [MiKTeX](https://miktex.org/download) is recommended.
+
+4. [Install SoX](https://sourceforge.net/projects/sox/files/sox/).
+
+5. Install the remaining Python packages. Make sure that ``pycairo==1.17.1`` is changed to ``pycairo==1.18.0`` in requirements.txt.
+    ```sh
+    git clone https://github.com/3b1b/manim.git
+    cd manim
+    pip3 install -r requirements.txt
+    python3 manim.py example_scenes.py SquareToCircle -pl
+    ```
+
 ### Using `virtualenv` and `virtualenvwrapper`
 After installing `virtualenv` and `virtualenvwrapper`
 ```sh
@@ -27,22 +45,17 @@ python3 -m manim example_scenes.py SquareToCircle -pl
 ```
 
 ### Using Docker
-Since it's a bit tricky to get all the dependencies set up just right, there is a Dockerfile provided in this repo as well as [a premade image on Docker Hub](https://hub.docker.com/r/eulertour/manim/tags/).
+Since it's a bit tricky to get all the dependencies set up just right, there is a Dockerfile and Compose file provided in this repo as well as [a premade image on Docker Hub](https://hub.docker.com/r/eulertour/manim/tags/). The Dockerfile contains instructions on how to build a manim image, while the Compose file contains instructions on how to run the image.
 
-The image does not contain a copy of the repo. This is intentional, as it allows you to either bind mount a repo that you've cloned locally or clone any fork/branch you want. Since test coverage is painfully lacking, the image may not have dependencies for all of manim.
+The image does not contain a copy of the repo. This is intentional, as it allows you to either bind mount a repo that you've cloned locally or clone any fork/branch you want. In order to do this with the Compose file, you must set the `MANIM_PATH` environment variable to the absolute path to the manim repo.
 
 1. [Install Docker](https://www.docker.com/products/overview)
-2. Get the docker image
-  * Pull it (recommended): `docker pull eulertour/manim:latest`, or
-  * Build it: `docker build -t manim .`
-3. Start the image
-  * Bind mount a local repo (recommended): `docker run -itv /absolute/path/to/your/local/manim/repo:/root/manim eulertour/manim` or
-  * Clone a remote repo: `docker run -it eulertour/manim`, then `git clone https://github.com/3b1b/manim.git`
-4. Render an animation
+2. [Install Docker Compose](https://docs.docker.com/compose/install/)
+3. Render an animation
 ```sh
-cd manim
-python3 -m manim example_scenes.py SquareToCircle -l
+MANIM_PATH=/absolute/path/to/manim/repo docker-compose run manim example_scenes.py SquareToCircle -l
 ```
+The first time you execute the above command, Docker will pull the image from Docker Hub and cache it. Any subsequent runs until the image is evicted will use the cached image.
 Note that the image doesn't have any development tools installed and can't preview animations. Its purpose is building and testing only.
 
 ## Using manim
@@ -50,7 +63,7 @@ Try running the following:
 ```sh
 python3 -m manim example_scenes.py SquareToCircle -pl
 ```
-The -p is for previewing, meaning the the video file will automatically open when it is done rendering.
+The -p is for previewing, meaning the video file will automatically open when it is done rendering.
 Use -l for a faster rendering at a lower quality.
 Use -s to skip to the end and just show the final frame.
 Use -n (number) to skip ahead to the n'th animation of a scene.

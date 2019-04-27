@@ -102,7 +102,7 @@ class PatreonThanks(Scene):
         patreon_logo = PatreonLogo()
         patreon_logo.to_edge(UP)
 
-        patrons = list(map(TextMobject, self.specific_patrons))
+        patrons = list(map(TextMobject, self.specific_patronds))
         num_groups = float(len(patrons)) / self.max_patron_group_size
         proportion_range = np.linspace(0, 1, num_groups + 1)
         indices = (len(patrons) * proportion_range).astype('int')
@@ -213,7 +213,14 @@ class PatreonEndScreen(PatreonThanks, PiCreatureScene):
         underline.next_to(thanks, DOWN, SMALL_BUFF)
         thanks.add(underline)
 
-        patrons = VGroup(*list(map(TextMobject, self.specific_patrons)))
+        changed_patron_names = map(
+            self.modify_patron_name,
+            self.specific_patrons,
+        )
+        patrons = VGroup(*map(
+            TextMobject,
+            changed_patron_names,
+        ))
         patrons.scale(self.patron_scale_val)
         for patron in patrons:
             if patron.get_width() > self.max_patron_width:
@@ -232,14 +239,11 @@ class PatreonEndScreen(PatreonThanks, PiCreatureScene):
         if columns.get_width() > self.max_patron_width:
             columns.set_width(total_width - 1)
 
-        thanks.to_edge(RIGHT)
-        columns.next_to(thanks, DOWN, 3 * LARGE_BUFF)
+        thanks.to_edge(RIGHT, buff=MED_SMALL_BUFF)
+        columns.next_to(underline, DOWN, buff=2)
 
         columns.generate_target()
-        columns.target.move_to(2 * DOWN, DOWN)
-        columns.target.align_to(
-            thanks, alignment_vect=RIGHT
-        )
+        columns.target.to_edge(DOWN, buff=2)
         vect = columns.target.get_center() - columns.get_center()
         distance = get_norm(vect)
         wait_time = 20
@@ -251,6 +255,11 @@ class PatreonEndScreen(PatreonThanks, PiCreatureScene):
 
         self.add(columns, black_rect, line, thanks)
         self.wait(wait_time)
+
+    def modify_patron_name(self, name):
+        if name is "RedAgent14":
+            return "Brian Shepetofsky"
+        return name
 
 
 class LogoGenerationTemplate(MovingCameraScene):

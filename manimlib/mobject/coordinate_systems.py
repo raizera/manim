@@ -34,6 +34,14 @@ class CoordinateSystem():
     def point_to_coords(self, point):
         raise Exception("Not implemented")
 
+    def c2p(self, *coords):
+        """Abbreviation for coords_to_point"""
+        return self.coords_to_point(*coords)
+
+    def p2c(self, point):
+        """Abbreviation for point_to_coords"""
+        return self.point_to_coords(point)
+
     def get_axes(self):
         raise Exception("Not implemented")
 
@@ -48,6 +56,34 @@ class CoordinateSystem():
 
     def get_z_axis(self):
         return self.get_axis(2)
+
+    def get_x_axis_label(self, label_tex, edge=RIGHT, direction=DL, **kwargs):
+        return self.get_axis_label(
+            label_tex, self.get_x_axis(),
+            edge, direction, **kwargs
+        )
+
+    def get_y_axis_label(self, label_tex, edge=UP, direction=DR, **kwargs):
+        return self.get_axis_label(
+            label_tex, self.get_y_axis(),
+            edge, direction, **kwargs
+        )
+
+    def get_axis_label(self, label_tex, axis, edge, direction, buff=MED_SMALL_BUFF):
+        label = TexMobject(label_tex)
+        label.next_to(
+            axis.get_edge_center(edge), direction,
+            buff=buff
+        )
+        label.shift_onto_screen(buff=MED_SMALL_BUFF)
+        return label
+
+    def get_axis_labels(self, x_label_tex="x", y_label_tex="y"):
+        self.axis_labels = VGroup(
+            self.get_x_axis_label(x_label_tex),
+            self.get_y_axis_label(y_label_tex),
+        )
+        return self.axis_labels
 
     def get_graph(self, function, **kwargs):
         x_min = kwargs.pop("x_min", self.x_min)
@@ -82,7 +118,7 @@ class CoordinateSystem():
                 )[0],
                 target=x,
                 lower_bound=self.x_min,
-                uplper_bound=self.x_max,
+                upper_bound=self.x_max,
             )
             if alpha is not None:
                 return graph.point_from_proportion(alpha)
@@ -288,7 +324,7 @@ class NumberPlane(Axes):
     def get_lines_parallel_to_axis(self, axis1, axis2, freq, ratio):
         line = Line(axis1.get_start(), axis1.get_end())
         dense_freq = (1 + ratio)
-        step = 1 / dense_freq
+        step = (1 / dense_freq) * freq
 
         lines1 = VGroup()
         lines2 = VGroup()
@@ -317,33 +353,6 @@ class NumberPlane(Axes):
 
     def get_axes(self):
         return self.axes
-
-    def get_x_axis_label(self, label_tex, edge=RIGHT, direction=DL, **kwargs):
-        return self.get_axis_label(
-            label_tex, self.get_x_axis(),
-            edge, direction, **kwargs
-        )
-
-    def get_y_axis_label(self, label_tex, edge=UP, direction=DR, **kwargs):
-        return self.get_axis_label(
-            label_tex, self.get_y_axis(),
-            edge, direction, **kwargs
-        )
-
-    def get_axis_label(self, label_tex, axis, edge, direction, buff=MED_SMALL_BUFF):
-        label = TexMobject(label_tex)
-        label.next_to(
-            axis.get_edge_center(edge), direction,
-            buff=buff
-        )
-        return label
-
-    def get_axis_labels(self, x_label_tex="x", y_label_tex="y"):
-        self.axis_labels = VGroup(
-            self.get_x_axis_label(x_label_tex),
-            self.get_y_axis_label(y_label_tex),
-        )
-        return self.axis_labels
 
     def get_vector(self, coords, **kwargs):
         kwargs["buff"] = 0
