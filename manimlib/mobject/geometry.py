@@ -26,6 +26,24 @@ DEFAULT_ARROW_TIP_LENGTH = 0.35
 
 
 class TipableVMobject(VMobject):
+    """
+    Meant for shared functionality between Arc and Line.
+    Functionality can be classified broadly into these groups:
+
+        * Adding, Creating, Modifying tips
+            - add_tip calls create_tip, before pushing the new tip
+                into the TipableVMobject's list of submobjects
+            - stylistic and positional configuration
+
+        * Checking for tips
+            - Boolean checks for whether the TipableVMobject has a tip
+                and a starting tip
+
+        * Getters
+            - Straightforward accessors, returning information pertaining
+                to the TipableVMobject instance's tip(s), its length etc
+
+    """
     CONFIG = {
         "tip_length": DEFAULT_ARROW_TIP_LENGTH,
         # TODO
@@ -35,12 +53,15 @@ class TipableVMobject(VMobject):
             "stroke_width": 0,
         }
     }
-    """
-    Meant simply for shard functionality between
-    Arc and Line
-    """
+    
+    # Adding, Creating, Modifying tips
 
     def add_tip(self, tip_length=None, at_start=False):
+        """
+        Adds a tip to the TipableVMobject instance, recognising
+        that the endpoints might need to be switched if it's
+        a 'starting tip' or not.
+        """
         tip = self.create_tip(tip_length, at_start)
         self.reset_endpoints_based_on_tip(tip, at_start)
         self.asign_tip_attr(tip, at_start)
@@ -48,11 +69,19 @@ class TipableVMobject(VMobject):
         return self
 
     def create_tip(self, tip_length=None, at_start=False):
+        """
+        Stylises the tip, positions it spacially, and returns
+        the newly instantiated tip to the caller.
+        """
         tip = self.get_unpositioned_tip(tip_length)
         self.position_tip(tip, at_start)
         return tip
 
     def get_unpositioned_tip(self, tip_length=None):
+        """
+        Returns a tip that has been stylistically configured,
+        but has not yet been given a position in space.
+        """
         if tip_length is None:
             tip_length = self.get_default_tip_length()
         color = self.get_color()
@@ -85,6 +114,7 @@ class TipableVMobject(VMobject):
             # Zero length, put_start_and_end_on wouldn't
             # work
             return self
+
         if at_start:
             self.put_start_and_end_on(
                 tip.get_base(), self.get_end()
@@ -102,7 +132,34 @@ class TipableVMobject(VMobject):
             self.tip = tip
         return self
 
+    # Checking for tips
+
+    def has_tip(self):
+        return hasattr(self, "tip") and self.tip in self
+
+    def has_start_tip(self):
+        return hasattr(self, "start_tip") and self.start_tip in self
+
+
+    # Getters
+
+    def pop_tips(self):
+        start, end = self.get_start_and_end()
+        result = VGroup()
+        if self.has_tip():
+            result.add(self.tip)
+            self.remove(self.tip)
+        if self.has_start_tip():
+            result.add(self.start_tip)
+            self.remove(self.start_tip)
+        self.put_start_and_end_on(start, end)
+        return result
+
     def get_tips(self):
+        """
+        Returns a VGroup (collection of VMobjects) containing
+        the TipableVMObject instance's tips.
+        """
         result = VGroup()
         if hasattr(self, "tip"):
             result.add(self.tip)
@@ -111,6 +168,8 @@ class TipableVMobject(VMobject):
         return result
 
     def get_tip(self):
+        """Returns the TipableVMobject instance's (first) tip,
+        otherwise throws an exception."""
         tips = self.get_tips()
         if len(tips) == 0:
             raise Exception("tip not found")
@@ -141,24 +200,6 @@ class TipableVMobject(VMobject):
     def get_length(self):
         start, end = self.get_start_and_end()
         return get_norm(start - end)
-
-    def has_tip(self):
-        return hasattr(self, "tip") and self.tip in self
-
-    def has_start_tip(self):
-        return hasattr(self, "start_tip") and self.start_tip in self
-
-    def pop_tips(self):
-        start, end = self.get_start_and_end()
-        result = VGroup()
-        if self.has_tip():
-            result.add(self.tip)
-            self.remove(self.tip)
-        if self.has_start_tip():
-            result.add(self.start_tip)
-            self.remove(self.start_tip)
-        self.put_start_and_end_on(start, end)
-        return result
 
 
 class Arc(TipableVMobject):
@@ -451,7 +492,7 @@ class Line(TipableVMobject):
             self.start = start
             self.end = end
             self.generate_points()
-        super().put_start_and_end_on(start, end)
+        return super().put_start_and_end_on(start, end)
 
     def get_vector(self):
         return self.get_end() - self.get_start()
@@ -470,6 +511,9 @@ class Line(TipableVMobject):
             angle - self.get_angle(),
             about_point=self.get_start(),
         )
+
+    def set_length(self, length):
+        self.scale(length / self.get_length())
 
     def set_opacity(self, opacity, family=True):
         # Overwrite default, which would set
@@ -534,6 +578,25 @@ class DashedLine(Line):
         return self.submobjects[-1].points[-2]
 
 
+class TangentLine(Line):
+    CONFIG = {
+        "length": 1,
+        "d_alpha": 1e-6
+    }
+
+    def __init__(self, vmob, alpha, **kwargs):
+        digest_config(self, kwargs)
+        da = self.d_alpha
+        a1 = np.clip(alpha - da, 0, 1)
+        a2 = np.clip(alpha + da, 0, 1)
+        super().__init__(
+            vmob.point_from_proportion(a1),
+            vmob.point_from_proportion(a2),
+            **kwargs
+        )
+        self.scale(self.length / self.get_length())
+
+
 class Elbow(VMobject):
     CONFIG = {
         "width": 0.2,
@@ -554,7 +617,6 @@ class Arrow(Line):
         "max_tip_length_to_length_ratio": 0.25,
         "max_stroke_width_to_length_ratio": 5,
         "preserve_tip_size_when_scaling": True,
-        "rectangular_stem_width": 0.05,
     }
 
     def __init__(self, *args, **kwargs):
@@ -625,7 +687,6 @@ class Arrow(Line):
 
 class Vector(Arrow):
     CONFIG = {
-        "color": YELLOW,
         "buff": 0,
     }
 

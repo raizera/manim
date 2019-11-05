@@ -148,13 +148,13 @@ class PatreonThanks(Scene):
 
 class PatreonEndScreen(PatreonThanks, PiCreatureScene):
     CONFIG = {
-        "n_patron_columns": 3,
-        "max_patron_width": 3.5,
+        "n_patron_columns": 4,
+        "max_patron_width": 5,
         "run_time": 20,
         "randomize_order": True,
         "capitalize": True,
         "name_y_spacing": 0.7,
-        "thanks_words": "Funded by the community, with special thanks to:",
+        "thanks_words": "My thanks to all the patrons among you",
     }
 
     def construct(self):
@@ -236,14 +236,15 @@ class PatreonEndScreen(PatreonThanks, PiCreatureScene):
             RIGHT, buff=LARGE_BUFF,
             aligned_edge=UP,
         )
-        if columns.get_width() > self.max_patron_width:
-            columns.set_width(total_width - 1)
-
-        thanks.to_edge(RIGHT, buff=MED_SMALL_BUFF)
+        max_width = FRAME_WIDTH - 1
+        if columns.get_width() > max_width:
+            columns.set_width(max_width)
+        underline.match_width(columns)
+        # thanks.to_edge(RIGHT, buff=MED_SMALL_BUFF)
         columns.next_to(underline, DOWN, buff=2)
 
         columns.generate_target()
-        columns.target.to_edge(DOWN, buff=2)
+        columns.target.to_edge(DOWN, buff=4)
         vect = columns.target.get_center() - columns.get_center()
         distance = get_norm(vect)
         wait_time = 20
@@ -257,8 +258,15 @@ class PatreonEndScreen(PatreonThanks, PiCreatureScene):
         self.wait(wait_time)
 
     def modify_patron_name(self, name):
-        if name == "RedAgent14":
-            return "Brian Shepetofsky"
+        modification_map = {
+            "RedAgent14": "Brian Shepetofsky",
+            "DeathByShrimp": "Henry Bresnahan",
+            "akostrikov": "Aleksandr Kostrikov",
+            "Jacob Baxter": "Will Fleshman",
+        }
+        for n1, n2 in modification_map.items():
+            if name.lower() == n1.lower():
+                return n2
         return name
 
 

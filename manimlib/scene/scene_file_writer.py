@@ -49,23 +49,30 @@ class SceneFileWriter(object):
         module_directory = self.output_directory or self.get_default_module_directory()
         scene_name = self.file_name or self.get_default_scene_name()
         if self.save_last_frame:
-            image_dir = guarantee_existence(os.path.join(
-                consts.VIDEO_DIR,
-                module_directory,
-                scene_name,
-                "images",
-            ))
+            if consts.VIDEO_DIR != "":
+                image_dir = guarantee_existence(os.path.join(
+                    consts.VIDEO_DIR,
+                    module_directory,
+                    "images",
+                ))
+            else:
+                image_dir = guarantee_existence(os.path.join(
+                    consts.VIDEO_OUTPUT_DIR,
+                    "images",
+                ))
             self.image_file_path = os.path.join(
                 image_dir,
                 add_extension_if_not_present(scene_name, ".png")
             )
         if self.write_to_movie:
-            movie_dir = guarantee_existence(os.path.join(
-                consts.VIDEO_DIR,
-                module_directory,
-                scene_name,
-                self.get_resolution_directory(),
-            ))
+            if consts.VIDEO_DIR != "":
+                movie_dir = guarantee_existence(os.path.join(
+                    consts.VIDEO_DIR,
+                    module_directory,
+                    self.get_resolution_directory(),
+                ))
+            else:
+                movie_dir = guarantee_existence(consts.VIDEO_OUTPUT_DIR)
             self.movie_file_path = os.path.join(
                 movie_dir,
                 add_extension_if_not_present(
@@ -223,16 +230,16 @@ class SceneFileWriter(object):
             '-pix_fmt', 'rgba',
             '-r', str(fps),  # frames per second
             '-i', '-',  # The imput comes from a pipe
-            '-c:v', 'h264_nvenc',
             '-an',  # Tells FFMPEG not to expect any audio
             '-loglevel', 'error',
         ]
+        # TODO, the test for a transparent background should not be based on
+        # the file extension.
         if self.movie_file_extension == ".mov":
-            # This is if the background of the exported video
-            # should be transparent.
+            # This is if the background of the exported
+            # video should be transparent.
             command += [
                 '-vcodec', 'qtrle',
-                # '-vcodec', 'png',
             ]
         else:
             command += [
@@ -306,18 +313,9 @@ class SceneFileWriter(object):
             '-safe', '0',
             '-i', file_list,
             '-loglevel', 'error',
-            
+            '-c', 'copy',
+            movie_file_path
         ]
-        if not self.save_as_gif:
-            commands +=[
-                '-c', 'copy',
-                movie_file_path
-            ]
-        if self.save_as_gif:
-            movie_file_path=self.gif_file_path
-            commands +=[
-                movie_file_path,
-            ]
         if not self.includes_sound:
             commands.insert(-1, '-an')
 
